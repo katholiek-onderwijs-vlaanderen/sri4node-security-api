@@ -35,7 +35,7 @@ exports = module.exports = function (config, sri4nodeUtils) {
     var url = config.SECURITY_API_HOST + '/security/query/resources/raw?component=' + component;
     url += '&ability=' + permission;
     url += '&person=' + me;
-
+    console.log(url);
     function handler(op, promise) {
 
       return function (err, response) {
@@ -45,11 +45,19 @@ exports = module.exports = function (config, sri4nodeUtils) {
           if (op.retry(err)) {
             return;
           }
-          
+
           promise.reject(err);
-        } else if (response.statusCode === 200) {
+        }
+
+        if (response && response.statusCode === 200) {
           promise.resolve(response.body);
+          // console.log('Security groups:', response.body);
         } else {
+          if (response){
+            console.log(response.statusCode);
+          }else{
+            console.log('ERROR');
+          }
           promise.reject();
         }
 
@@ -109,15 +117,26 @@ exports = module.exports = function (config, sri4nodeUtils) {
       };
     }
 
-    function resolveQuery(queryConverted, groupConvertedDeferred) {
+    function getTableName(permission, element, reducedGroup) {
+      var path;
+      if (permission === 'delete') {
+        path = element.body;
+        return path.split('/')[path.split('/').length - 2];
+      }
+      path = reducedGroup.split('?')[0];
+      return path.split('/')[path.split('/').length - 1];
+    }
 
+    function resolveQuery(queryConverted, reducedGroup, groupConvertedDeferred) {
       var keys = elements.map((element) => {
         return getKey(permission, element);
       });
 
-      return function () {
-        queryConverted.sql(' AND \"key\" IN (').array(keys).sql(')');
+      var tablename = getTableName(permission, elements[0], reducedGroup);
 
+      return function () {
+        queryConverted.sql(' AND ' + tablename + '.\"key\" IN (').array(keys).sql(')');
+        //  console.log('QUERY:', queryConverted.text, queryConverted.params);
         sri4nodeUtils.executeSQL(database, queryConverted)
           .then(checkElementsExist(groupConvertedDeferred))
           .catch(function () {
@@ -127,19 +146,20 @@ exports = module.exports = function (config, sri4nodeUtils) {
 
     }
 
-    function convertListToSqlFailed() {
+    function convertListToSqlFailed(err) {
       groupDeferred.reject();
     }
 
     // for each group, convert to sql and check if the elements are there
     for (i = 0; i < reducedGroups.length; i++) {
       groupUrl = urlModule.parse(reducedGroups[i], true);
+      // console.log('Group url..', groupUrl);
       query = sri4nodeUtils.prepareSQL('check-resource-exist');
       groupDeferred = Q.defer();
       promises.push(groupDeferred.promise);
       // there is no guarantee that the group is mapped in the database
       sri4nodeUtils.convertListResourceURLToSQL(groupUrl.pathname, groupUrl.query, false, database, query)
-        .then(resolveQuery(query, groupDeferred))
+        .then(resolveQuery(query, reducedGroups[i], groupDeferred))
         .fail(convertListToSqlFailed);
     }
 
@@ -171,7 +191,6 @@ exports = module.exports = function (config, sri4nodeUtils) {
     getResourceGroups(permission, me, component)
       .then(function (groups) {
         var reducedGroups = utils.reduceRawGroups(groups);
-
         // 2) check if route is subset of any raw group => grant access
         if (route && checkSpecialCase(reducedGroups, route)) {
           return deferred.resolve();
@@ -180,7 +199,8 @@ exports = module.exports = function (config, sri4nodeUtils) {
         checkDirectPermissionOnSet(permission, elements, database, reducedGroups, deferred);
 
       })
-      .fail(function () {
+      .fail(function (e) {
+        console.log('Failed get resources..', e);
         deferred.reject({
           statusCode: 503,
           body: 'Service unavailable'
