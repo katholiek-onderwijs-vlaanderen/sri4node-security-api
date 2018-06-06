@@ -1,63 +1,45 @@
-var Q = require('q');
+const util = require('util')
 
-var security;
-
-module.exports = function (configuration, sri4nodeUtils) {
+module.exports = function (component, app, pluginConfig) {
   'use strict';
 
-  security = require('./js/security')(configuration, sri4nodeUtils);
+  let security;
+  return {
+    init: function (sriConfig) {
+      // As the vsko security implementation depends directly on oauth, don't 
+      const oauthValve = require('vsko-authentication')(app);
+      oauthValve.install(sriConfig)
+      pluginConfig.oauthValve = oauthValve
 
-  return function (component) {
-    return {
-      // special case: ability can be something different for checking sub resources
-      checkReadPermission: function (database, elements, me, route, param) {
-        // sanitize, always pass an array to the check function
-        if (!Array.isArray(elements)) {
-          elements = [elements];
-        }
+      security = require('./js/security')(pluginConfig, sriConfig);
+    },
 
-        var ability;
+    install: function (sriConfig) {
 
-        if (!param || typeof param === 'function') {
-          ability = 'read';
-        } else {
-          ability = param;
-        }
+      init(sriConfig);
 
-        return security.checkReadPermissionOnSet(elements, me, component, database, route, ability);
-      },
-      checkInsertPermission: function (database, elements, me) {
-        // sanitize, always pass an array to the check function
-        if (!Array.isArray(elements)) {
-          elements = [elements];
-        }
-
-        return security.checkInsertPermissionOnSet(elements, me, component, database);
-      },
-      checkUpdatePermission: function (database, elements, me, route) {
-        // sanitize, always pass an array to the check function
-        if (!Array.isArray(elements)) {
-          elements = [elements];
-        }
-
-        return security.checkUpdatePermissionOnSet(elements, me, component, database, route);
-      },
-      checkDeletePermission: function (req, res, database, me, route) {
-
-        // this is called from a secure function in sri4node, which is used on each Request
-        // we only continue if the request is a DELETE operation
-        if (req.method !== 'DELETE') {
-          return Q.fcall(function () { return true; });
-        }
-
-        var elements = {
-          path: req.route.path,
-          body: req.route.path
-        };
-
-        return security.checkDeletePermissionOnSet(elements, me, component, database, route);
+      const check = async function (tx, sriRequest, elements, operation) {
+        await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, operation)
       }
-    };
-  };
 
-};
+      sriConfig.resources.forEach( resource => {
+        // security functions should be FIRST function in handler lists
+        resource.afterRead.unshift((tx, sriRequest, elements) => check(tx, sriRequest, elements, 'read'))
+        resource.afterInsert.unshift((tx, sriRequest, elements) => check(tx, sriRequest, elements, 'create'))
+        resource.afterUpdate.unshift((tx, sriRequest, elements) => check(tx, sriRequest, elements, 'update'))
+        resource.beforeDelete.unshift((tx, sriRequest, elements) => check(tx, sriRequest, elements, 'delete'))
+      })
+    },
+
+    customCheck: function (tx, sriRequest, ability, resource, component) { 
+        if (component === undefined) {
+          component = defaultComponent
+        }
+        return security.customCheck(tx, sriRequest, ability, resource, component)
+      },
+    customCheckBatch: function (tx, sriRequest, elements) { return security.customCheckBatch(tx, sriRequest, elements) },
+    handleNotAllowed: function (sriRequest) { return security.handleNotAllowed(sriRequest) },
+
+    getOauthValve: () => pluginConfig.oauthValve
+  }
+}

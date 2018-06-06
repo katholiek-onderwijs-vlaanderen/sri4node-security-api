@@ -1,253 +1,197 @@
-var Q = require('q');
-var needle = require('needle');
-var retry = require('retry');
-var common = require('./common');
-var utils = require('./utils');
-var urlModule = require('url');
+const util = require('util');
+const urlModule = require('url');
+const _ = require('lodash');
+const pMemoize = require('p-memoize');
+const pReduce = require('p-reduce');
+const request = require('requestretry');
 
-exports = module.exports = function (config, sri4nodeUtils) {
+const { SriError, debug, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey } = require('sri4node/js/common.js')
+
+const memRequest = pMemoize(request, {maxAge: 5*60*1000}); // cache raw requests for 5 minutes
+
+var utils = require('./utils');
+
+exports = module.exports = function (pluginConfig, sriConfig) {
 
   'use strict';
 
-  var reqOptions = {
-    username: config.USER,
-    password: config.PASSWORD,
-    open_timeout: 0, //eslint-disable-line
-    json: true,
-    headers: common.getHeaders(config)
-  };
+  const sri4nodeUtils = sriConfig.utils
 
-  function constructOperation() {
-    return retry.operation({
-      retries: 3,
-      factor: 3,
-      minTimeout: 1000,
-      maxTimeout: 5 * 1000,
-      randomize: true
-    });
-  }
 
-  function getResourceGroups(permission, me, component) {
-
-    var operation = constructOperation();
-    var deferred = Q.defer();
-
-    var url = config.SECURITY_API_HOST + '/security/query/resources/raw?component=' + component;
-    url += '&ability=' + permission;
-    url += '&person=' + me;
-    console.log(url);
-    function handler(op, promise) {
-
-      return function (err, response) {
-
-        if (err) {
-
-          if (op.retry(err)) {
-            return;
-          }
-
-          promise.reject(err);
-        }
-
-        if (response && response.statusCode === 200) {
-          promise.resolve(response.body);
-          // console.log('Security groups:', response.body);
-        } else {
-          if (response){
-            console.log(response.statusCode);
-          }else{
-            console.log('ERROR');
-          }
-          promise.reject();
-        }
-
-      };
-    }
-
-    operation.attempt(function () {
-      needle.get(url, reqOptions, handler(operation, deferred));
-    });
-
-    return deferred.promise;
-  }
-
-  // special case: If route is a subset of the reduction of raw security groups => allow
-  function checkSpecialCaseForQuery(reducedGroups, route) {
-    return reducedGroups.some(utils.contains(route));
-  }
-
-  function checkSpecialCaseForPermalink(reducedGroups, permalink) {
-    var type = utils.getResourceTypeFromPermalink(permalink);
-    return checkSpecialCaseForQuery(reducedGroups, type);
-  }
-
-  function checkSpecialCase(reducedGroups, route) {
-    if (utils.isPermalink(route)) {
-      return checkSpecialCaseForPermalink(reducedGroups, route);
-    }
-    return checkSpecialCaseForQuery(reducedGroups, decodeURIComponent(route));
-  }
-
-  function getKey(permission, element) {
-    if (permission === 'delete') {
-      return utils.getKeyFromPermalink(element.body);
-    }
-
-    return element.body.key;
-  }
-
-  function checkDirectPermissionOnSet(permission, elements, database, reducedGroups, deferred) {
-    if (!deferred) {
-      deferred = Q.defer();
-    }
-    var promises = [];
-    var groupUrl;
-    var i;
-    var query;
-    var groupDeferred;
-
-    function checkElementsExist(promise) {
-
-      return function (result) {
-        if (result.rows.length === elements.length) {
-          promise.resolve();
-        } else {
-          promise.reject();
-        }
-      };
-    }
-
-    function getTableName(permission, element, reducedGroup) {
-      var path;
-      if (permission === 'delete') {
-        path = element.body;
-        return path.split('/')[path.split('/').length - 2];
-      }
-      path = reducedGroup.split('?')[0];
-      return path.split('/')[path.split('/').length - 1];
-    }
-
-    function resolveQuery(queryConverted, reducedGroup, groupConvertedDeferred) {
-      var keys = elements.map((element) => {
-        return getKey(permission, element);
-      });
-
-      var tablename = getTableName(permission, elements[0], reducedGroup);
-
-      return function () {
-        queryConverted.sql(' AND ' + tablename + '.\"key\" IN (').array(keys).sql(')');
-        //  console.log('QUERY:', queryConverted.text, queryConverted.params);
-        sri4nodeUtils.executeSQL(database, queryConverted)
-          .then(checkElementsExist(groupConvertedDeferred))
-          .catch(function () {
-            groupConvertedDeferred.reject();
-          });
-      };
-
-    }
-
-    function convertListToSqlFailed(err) {
-      groupDeferred.reject();
-    }
-
-    // for each group, convert to sql and check if the elements are there
-    for (i = 0; i < reducedGroups.length; i++) {
-      groupUrl = urlModule.parse(reducedGroups[i], true);
-      // console.log('Group url..', groupUrl);
-      query = sri4nodeUtils.prepareSQL('check-resource-exist');
-      groupDeferred = Q.defer();
-      promises.push(groupDeferred.promise);
-      // there is no guarantee that the group is mapped in the database
-      sri4nodeUtils.convertListResourceURLToSQL(groupUrl.pathname, groupUrl.query, false, database, query)
-        .then(resolveQuery(query, reducedGroups[i], groupDeferred))
-        .fail(convertListToSqlFailed);
-    }
-
-    // at least one succeeded
-    Q.allSettled(promises)
-      .then(function (results) {
-
-        if (results.some(
-            function (result) {
-              return result.state === 'fulfilled';
-            })) {
-          deferred.resolve();
-        } else {
-          deferred.reject({
-            statusCode: 403,
-            body: 'Forbidden'
-          });
-        }
-      });
-
-    return deferred.promise;
-  }
-
-  function checkPermission(permission, elements, me, component, database, route) {
-
-    var deferred = Q.defer();
-
-    // 1) get raw groups
-    getResourceGroups(permission, me, component)
-      .then(function (groups) {
-        var reducedGroups = utils.reduceRawGroups(groups);
-        // 2) check if route is subset of any raw group => grant access
-        if (route && checkSpecialCase(reducedGroups, route)) {
-          return deferred.resolve();
-        }
-
-        checkDirectPermissionOnSet(permission, elements, database, reducedGroups, deferred);
-
-      })
-      .fail(function (e) {
-        console.log('Failed get resources..', e);
-        deferred.reject({
-          statusCode: 503,
-          body: 'Service unavailable'
-        });
-      });
-
-    return deferred.promise;
-  }
-
-  return {
-
-    checkReadPermissionOnSet: function (elements, me, component, database, route, ability) {
-
-      elements = elements.map(function (element) {
-        return {
-          path: element.$$meta.permalink,
-          body: element
-        };
-      });
-
-      // special case: if me === null (anonymous) we ask for person * (in beveiliging * means public)
-      if (!me) {
-        me = '*';
+  const checkRawResourceForKeys = async (tx, rawEntry, keys) => {
+    if (utils.isPermalink(rawEntry)) {
+      const permalinkKey = utils.getKeyFromPermalink(rawEntry)
+      if (keys.includes(permalinkKey)) {
+        return [ permalinkKey ]
       } else {
-        me = '/persons/' + me.uuid;
+        return []
       }
+    } else {
+      const rawUrl = urlModule.parse(rawEntry, true);
+      const query = sri4nodeUtils.prepareSQL('check-resource-exist');
 
-      return checkPermission(ability, elements, me, component, database, route);
-    },
-    checkInsertPermissionOnSet: function (elements, me, component, database) {
+      // there is no guarantee that the group is mapped in the database      
+      const mapping = typeToMapping(rawUrl.pathname);
+      sri4nodeUtils.convertListResourceURLToSQL(mapping, rawUrl.query, false, tx, query)
+      query.sql(' AND \"' + tableFromMapping(mapping) +'\".\"key\" IN (').array(keys).sql(')');
 
-      me = '/persons/' + me.uuid;
-
-      return checkPermission('create', elements, me, component, database);
-    },
-    checkUpdatePermissionOnSet: function (elements, me, component, database) {
-
-      me = '/persons/' + me.uuid;
-
-      return checkPermission('update', elements, me, component, database);
-    },
-    checkDeletePermissionOnSet: function (elements, me, component, database) {
-
-      me = '/persons/' + me.uuid;
-
-      return checkPermission('delete', elements, me, component, database);
+      const rows = await sri4nodeUtils.executeSQL(tx, query)
+      return rows.map( r => r.key )  // TODO: verify
     }
-  };
+  }
+
+
+  function handleNotAllowed(sriRequest) {
+      // Notify the oauthValve that the current request is forbidden. The valve might act
+      // according to this information by throwing an SriError object (for example a redirect to a 
+      // login page or an error in case of a bad authentication token). 
+      pluginConfig.oauthValve.handleForbiddenBySecurity(sriRequest)
+
+      // If the valve did not throw an SriError, the default response 403 Forbidden is returned.
+      throw new SriError({status: 403})    
+  }
+
+
+  async function doSecurityRequest(url, batch) {
+    try {
+      debug(`Querying security at: ${url}`)      
+      let res;
+      if (batch === undefined) {
+        res = await memRequest({url: url, auth: pluginConfig.auth, headers: pluginConfig.headers, json:true}) 
+      } else {
+        res = await request.put({url: url, body: batch, auth: pluginConfig.auth, headers: pluginConfig.headers, json:true})
+      }
+      if (res.statusCode!=200) {
+        throw `security request returned unexpected status ${res.statusCode}: ${util.inspect(res.body)}`
+      }
+      return res.body
+    } catch (error) {
+      console.log('____________________________ E R R O R ____________________________________________________') 
+      console.log(error)
+      console.log('___________________________________________________________________________________________') 
+      throw new SriError({status: 503, errors: [{ code: 'security.unavailable',  msg: 'Retrieving security information failed.' }]})
+    }    
+  }
+
+
+
+
+
+  async function checkPermissionOnElements(component, tx, sriRequest, elements, operation) {
+    const resourceTypes = _.uniq(elements.map( e => utils.getResourceFromUrl(e.permalink) ))
+
+    if (resourceTypes.length > 1) {
+      // Do not allow mixed resource output. Does normally not occur.
+      console.log(`ERR: Mixed resource output:`)
+      console.log(elements)
+      throw new SriError({status: 403})
+    }
+
+    const [ resourceType ] = resourceTypes
+    const url = pluginConfig.securityApiBase + '/security/query/resources/raw?component=' + component
+                  + '&ability=' + operation
+                  + '&person=' + getPersonFromSriRequest(sriRequest);
+    // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
+    // (needs change in security API)
+
+    const resourcesRaw = await doSecurityRequest(url)
+
+
+    const relevantRawResources = resourcesRaw.filter( rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
+
+    const superUserResource = resourceType + (sriRequest.containsDeleted ? '?$$meta.deleted=any' : '')
+    if (relevantRawResources.includes(superUserResource)) {
+      return true
+    }
+
+    const keys = elements.map( element => utils.getKeyFromPermalink(element.permalink) )
+    debug('relevantRawResources:')
+    debug(relevantRawResources)
+    const keysNotMatched = await pReduce(relevantRawResources, async (keysNeeded, rawEntry) => {
+        debug('NEEDED KEYS:')
+        debug(keysNeeded)
+
+      if (keysNeeded.length > 0) {
+        const matchedkeys = await (checkRawResourceForKeys(tx, rawEntry, keysNeeded))
+        debug('MATCHED KEYS:')
+        debug(matchedkeys)
+        return keysNeeded.filter( k => !matchedkeys.includes(k) )
+      } else {
+        return []
+      }
+    }, keys)
+
+    if (keysNotMatched.length > 0) {
+      debug(`keysNotMatched: ${keysNotMatched}`)
+      handleNotAllowed(sriRequest)
+    }
+  }
+
+  async function customCheck(tx, sriRequest, ability, resource, component) {
+    if (component === null) throw new SriError({status: 403})  
+    const url = pluginConfig.securityApiBase + '/security/query/allowed?component=' + component
+                  + '&person=' + getPersonFromSriRequest(sriRequest)
+                  + '&ability=' + ability
+                  + (resource !== undefined ? '&resource=' + resource : '');
+    const result = await doSecurityRequest(url)
+
+    if (result !== true) {
+      debug(`not allowed`)
+      handleNotAllowed(sriRequest)
+    }
+  }
+
+  async function customCheckBatch(tx, sriRequest, elements) {
+    if (elements.length === 1) {
+      // optimalisation: batch with one element -> use cached customCheck
+      const {component, resource, ability} = elements[0];
+      await customCheck(component, tx, sriRequest, ability, resource);
+    } else {
+      const batch = elements.map( ({component, resource, ability}) => {
+                              if (component === null) throw new SriError({status: 403})  
+                              const url = '/security/query/allowed?component=' + component
+                                            + '&person=' + getPersonFromSriRequest(sriRequest)
+                                            + '&ability=' + ability
+                                            + (resource !== undefined ? '&resource=' + resource : '');
+                              return { href: url, verb: 'GET' }
+                          })
+      const result = await doSecurityRequest(pluginConfig.securityApiBase + '/security/query/batch', batch)
+
+      const notAllowed = result.filter( e => (e.status !== 200 || e.body !== true) )
+
+      if (notAllowed.length > 0) {
+        // in the case where the resource does not exist in the database anymore (e.g. after physical delete)
+        // the allowed checks failed even for superuser
+        // check wether the user has the required superuser rights (deleted inclusive)
+        const toCheck = _.uniqWith( notAllowed.map( (e, idx) => {
+                  const {component, resource, ability} = elements[idx];
+                  const { type } = urlToTypeAndKey(resource)
+                  return {component, type, ability}
+                } ), _.isEqual )
+
+        const rawBatch = toCheck.map( ({component, type, ability}) => {
+                                      const url = '/security/query/resources/raw?component=' + component
+                                                    + '&person=' + getPersonFromSriRequest(sriRequest)
+                                                    + '&ability=' + ability;
+                                      return { href: url, verb: 'GET' }
+                                  })
+
+        const rawResult = await doSecurityRequest(pluginConfig.securityApiBase + '/security/query/batch', rawBatch)
+        if (rawResult.some( (e, idx) => {
+            return ! e.body.includes(toCheck[idx].type + '?$$meta.deleted=any') 
+          } )) {
+          debug(`not allowed`)
+          handleNotAllowed(sriRequest)
+        }
+      }
+    }
+  }
+
+  return { 
+    checkPermissionOnElements,
+    customCheck,
+    customCheckBatch,
+    handleNotAllowed
+  }
 
 };

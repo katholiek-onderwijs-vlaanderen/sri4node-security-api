@@ -1,6 +1,6 @@
 var isPermalink = function (href) {
   'use strict';
-  return href.match(/^\/[a-z\/]*\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/);
+  return (href.match(/^\/[a-z\/]*\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(\?.*)?$/)!==null)
 };
 
 var getPartFromPermalink = function (permalink, part) {
@@ -8,7 +8,7 @@ var getPartFromPermalink = function (permalink, part) {
   var groups;
 
   if (isPermalink(permalink)) {
-    groups = permalink.match(/^(\/[a-z\/]*)\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/);
+    groups = permalink.match(/^(\/[a-z\/]*)\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(\?.*)?$/);
     if (part === 'resource') {
       return groups[1];
     } else if (part === 'key') {
@@ -18,6 +18,40 @@ var getPartFromPermalink = function (permalink, part) {
 
   return null;
 };
+
+
+/*
+
+TODO: lookup usage of var/consts in regexps
+
+/content/relations/d0083583-61a2-43f9-a95c-b4f9ed54cece
+/content/relations/00083583-61a2-43f9-a95c-b4f9ed54cece
+
+/content/relations/00083583-61a2-43f9-a95c-b4f9ed54cece?foo=bar
+/content/relations
+/content/relations/
+/content/relations?foo=bar
+
+/content/relations?foo=/bar/x
+
+pattern: 
+RESOURCE_TYPE[/UUID | ?].*
+
+
+*/
+
+
+var getResourceFromUrl = function (url) {
+  'use strict';
+
+  const groups = url.match(/^(\/[a-z\/]*[[a-z]+)((\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})|\?|$|\/$)(.*)?$/)
+  if (groups.length > 0) {
+    return groups[1]
+  } else {
+    return null
+  }
+};
+
 
 var getResourceTypeFromPermalink = function (permalink) {
   'use strict';
@@ -132,6 +166,7 @@ module.exports = {
   getResourceTypeFromPermalink: getResourceTypeFromPermalink,
   getKeyFromPermalink: getKeyFromPermalink,
   contains: contains,
-  isPermalink: isPermalink
+  isPermalink: isPermalink,
+  getResourceFromUrl: getResourceFromUrl
 
 };
