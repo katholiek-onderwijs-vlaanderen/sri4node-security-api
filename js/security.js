@@ -145,7 +145,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     if (elements.length === 1) {
       // optimalisation: batch with one element -> use cached customCheck
       const {component, resource, ability} = elements[0];
-      await customCheck(component, tx, sriRequest, ability, resource);
+      await customCheck(tx, sriRequest, ability, resource, component);
     } else {
       const batch = elements.map( ({component, resource, ability}) => {
                               if (component === null) throw new SriError({status: 403})  
