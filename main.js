@@ -1,6 +1,6 @@
 const util = require('util')
 
-module.exports = function (component, app, pluginConfig) {
+module.exports = function (defaultComponent, app, pluginConfig) {
   'use strict';
 
   let security;
@@ -16,7 +16,7 @@ module.exports = function (component, app, pluginConfig) {
 
     install: function (sriConfig) {
 
-      init(sriConfig);
+      this.init(sriConfig);
 
       const check = async function (tx, sriRequest, elements, operation) {
         await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, operation)
