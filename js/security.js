@@ -64,6 +64,11 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     try {
       const res = await memPut('/security/query/batch', batch);
       if (res.some( r => (r.status != 200) )) {
+        console.log('_______________________________________________________________')
+        console.log(batch)
+        console.log('-----')
+        console.log(res)
+        console.log('_______________________________________________________________')
         throw 'unexpected.status.in.batch.result'
       }
       return res.map( r => r.body )
@@ -86,7 +91,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
 
     const [ resourceType ] = resourceTypes
-    const url = pluginConfig.securityApiBase + '/security/query/resources/raw?component=' + component
+    const url = '/security/query/resources/raw?component=' + component
                   + '&ability=' + operation
                   + '&person=' + getPersonFromSriRequest(sriRequest);
     // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
