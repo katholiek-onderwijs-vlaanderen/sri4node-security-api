@@ -26,6 +26,6 @@
   "dependencies": {
     "p-memoize": "^1.0.0",
     "p-reduce": "^1.0.0",
-    "requestretry": "^1.12.2"
+    "@kathondvla/sri-client": "https://github.com/katholiek-onderwijs-vlaanderen/sri-client.git"
   }
 }

@@ -3,11 +3,8 @@ const urlModule = require('url');
 const _ = require('lodash');
 const pMemoize = require('p-memoize');
 const pReduce = require('p-reduce');
-const request = require('requestretry');
 
 const { SriError, debug, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey } = require('sri4node/js/common.js')
-
-const memRequest = pMemoize(request, {maxAge: 5*60*1000}); // cache raw requests for 5 minutes
 
 var utils = require('./utils');
 
@@ -16,6 +13,18 @@ exports = module.exports = function (pluginConfig, sriConfig) {
   'use strict';
 
   const sri4nodeUtils = sriConfig.utils
+
+  const configuration = {
+    baseUrl: pluginConfig.securityApiBase,
+    headers: pluginConfig.headers,
+    username: pluginConfig.auth.user, 
+    password: pluginConfig.auth.pass,
+    accessToken: pluginConfig.accessToken
+  }
+
+  const api = require('@kathondvla/sri-client/node-sri-client')(configuration)
+  const memGet = pMemoize(api.get, {maxAge: 5*60*1000}); // cache requests for 5 minutes
+  const memPut = pMemoize(api.put, {maxAge: 5*60*1000}); // cache requests for 5 minutes
 
 
   const checkRawResourceForKeys = async (tx, rawEntry, keys) => {
@@ -51,31 +60,20 @@ exports = module.exports = function (pluginConfig, sriConfig) {
       throw new SriError({status: 403})    
   }
 
-
-  async function doSecurityRequest(url, batch) {
+  async function doSecurityRequest(batch) {
     try {
-      debug(`Querying security at: ${url}`)      
-      let res;
-      if (batch === undefined) {
-        res = await memRequest({url: url, auth: pluginConfig.auth, headers: pluginConfig.headers, json:true}) 
-      } else {
-        res = await request.put({url: url, body: batch, auth: pluginConfig.auth, headers: pluginConfig.headers, json:true})
+      const res = await memPut('/security/query/batch', batch);
+      if (res.some( r => (r.status != 200) )) {
+        throw 'unexpected.status.in.batch.result'
       }
-      if (res.statusCode!=200) {
-        throw `security request returned unexpected status ${res.statusCode}: ${util.inspect(res.body)}`
-      }
-      return res.body
+      return res.map( r => r.body )
     } catch (error) {
       console.log('____________________________ E R R O R ____________________________________________________') 
       console.log(error)
       console.log('___________________________________________________________________________________________') 
-      throw new SriError({status: 503, errors: [{ code: 'security.unavailable',  msg: 'Retrieving security information failed.' }]})
+      throw new SriError({status: 503, errors: [{ code: 'security.request.failed',  msg: 'Retrieving security information failed.' }]})
     }    
   }
-
-
-
-
 
   async function checkPermissionOnElements(component, tx, sriRequest, elements, operation) {
     const resourceTypes = _.uniq(elements.map( e => utils.getResourceFromUrl(e.permalink) ))
@@ -94,7 +92,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
     // (needs change in security API)
 
-    const resourcesRaw = await doSecurityRequest(url)
+    const [ resourcesRaw ] = await doSecurityRequest([{ href: url, verb: 'GET' }])
 
 
     const relevantRawResources = resourcesRaw.filter( rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
@@ -127,69 +125,59 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
   }
 
-  async function customCheck(tx, sriRequest, ability, resource, component) {
-    if (component === null) throw new SriError({status: 403})  
-    const url = pluginConfig.securityApiBase + '/security/query/allowed?component=' + component
-                  + '&person=' + getPersonFromSriRequest(sriRequest)
-                  + '&ability=' + ability
-                  + (resource !== undefined ? '&resource=' + resource : '');
-    const result = await doSecurityRequest(url)
-
-    if (result !== true) {
-      debug(`not allowed`)
-      handleNotAllowed(sriRequest)
-    }
-  }
-
   async function customCheckBatch(tx, sriRequest, elements) {
-    if (elements.length === 1) {
-      // optimalisation: batch with one element -> use cached customCheck
-      const {component, resource, ability} = elements[0];
-      await customCheck(tx, sriRequest, ability, resource, component);
-    } else {
-      const batch = elements.map( ({component, resource, ability}) => {
-                              if (component === null) throw new SriError({status: 403})  
-                              const url = '/security/query/allowed?component=' + component
-                                            + '&person=' + getPersonFromSriRequest(sriRequest)
-                                            + '&ability=' + ability
-                                            + (resource !== undefined ? '&resource=' + resource : '');
-                              return { href: url, verb: 'GET' }
-                          })
-      const result = await doSecurityRequest(pluginConfig.securityApiBase + '/security/query/batch', batch)
+    const batch = elements.map( ({component, resource, ability}) => {
+                            if (component === null) throw new SriError({status: 403})  
+                            const url = '/security/query/allowed?component=' + component
+                                          + '&person=' + getPersonFromSriRequest(sriRequest)
+                                          + '&ability=' + ability
+                                          + (resource !== undefined ? '&resource=' + resource : '');
+                            return { href: url, verb: 'GET' }
+                        })
+    const result = await doSecurityRequest(batch)
 
-      const notAllowed = result.filter( e => (e.status !== 200 || e.body !== true) )
+    const notAllowedIndices = []
+    result.forEach( (e, idx) => {
+        if (e !== true) { notAllowedIndices.push(idx) }
+    })    
 
-      if (notAllowed.length > 0) {
-        // in the case where the resource does not exist in the database anymore (e.g. after physical delete)
-        // the allowed checks failed even for superuser
-        // check wether the user has the required superuser rights (deleted inclusive)
-        const toCheck = _.uniqWith( notAllowed.map( (e, idx) => {
-                  const {component, resource, ability} = elements[idx];
-                  const { type } = urlToTypeAndKey(resource)
-                  return {component, type, ability}
-                } ), _.isEqual )
+    if (notAllowedIndices.length > 0) {
+      // In the case where the resource does not exist in the database anymore (e.g. after physical delete)
+      // or the in case of a create which is not yet synced in the security server
+      // the isAllowed() check fails even for superuser.
+      // ==> check wether the user has the required superuser rights 
+      const toCheck = _.uniqWith( notAllowedIndices.map( (idx) => {
+                const {component, resource, ability} = elements[idx];
+                const { type } = urlToTypeAndKey(resource)
+                return {component, type, ability}
+              } ), _.isEqual )
 
-        const rawBatch = toCheck.map( ({component, type, ability}) => {
-                                      const url = '/security/query/resources/raw?component=' + component
-                                                    + '&person=' + getPersonFromSriRequest(sriRequest)
-                                                    + '&ability=' + ability;
-                                      return { href: url, verb: 'GET' }
-                                  })
+      const rawBatch = toCheck.map( ({component, type, ability}) => {
+                                    const url = '/security/query/resources/raw?component=' + component
+                                                  + '&person=' + getPersonFromSriRequest(sriRequest)
+                                                  + '&ability=' + ability;
+                                    return { href: url, verb: 'GET' }
+                                })
 
-        const rawResult = await doSecurityRequest(pluginConfig.securityApiBase + '/security/query/batch', rawBatch)
-        if (rawResult.some( (e, idx) => {
-            return ! e.body.includes(toCheck[idx].type + '?$$meta.deleted=any') 
-          } )) {
-          debug(`not allowed`)
-          handleNotAllowed(sriRequest)
-        }
+      const rawResult = await doSecurityRequest(rawBatch)
+
+      if (rawResult.some( (e, idx) => {
+          let rawRequired = toCheck[idx].type 
+          if (toCheck[idx].ability === 'read') {
+            // $$meta.deleted=any is only required in case of ability 'read'
+            rawRequired += '?$$meta.deleted=any'
+          }
+          return ! e.includes(rawRequired) 
+        } )) {
+        debug(`not allowed`)
+        handleNotAllowed(sriRequest)
       }
     }
   }
 
+
   return { 
     checkPermissionOnElements,
-    customCheck,
     customCheckBatch,
     handleNotAllowed
   }

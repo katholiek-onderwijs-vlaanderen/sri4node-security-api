@@ -20,14 +20,15 @@ module.exports = function (defaultComponent, app, pluginConfig) {
 
       const check = async function (tx, sriRequest, elements, operation) {
         await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, operation)
+        console.log('CHECK DONE')
       }
 
       sriConfig.resources.forEach( resource => {
         // security functions should be FIRST function in handler lists
-        resource.afterRead.unshift((tx, sriRequest, elements) => check(tx, sriRequest, elements, 'read'))
-        resource.afterInsert.unshift((tx, sriRequest, elements) => check(tx, sriRequest, elements, 'create'))
-        resource.afterUpdate.unshift((tx, sriRequest, elements) => check(tx, sriRequest, elements, 'update'))
-        resource.beforeDelete.unshift((tx, sriRequest, elements) => check(tx, sriRequest, elements, 'delete'))
+        resource.afterRead.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'read'))
+        resource.afterInsert.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'create'))
+        resource.afterUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))
+        resource.beforeDelete.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'delete'))
       })
     },
 
