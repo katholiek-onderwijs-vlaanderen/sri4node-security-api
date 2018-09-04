@@ -43,8 +43,11 @@ exports = module.exports = function (pluginConfig, sriConfig) {
       const mapping = typeToMapping(rawUrl.pathname);
       sri4nodeUtils.convertListResourceURLToSQL(mapping, rawUrl.query, false, tx, query)
       query.sql(' AND \"' + tableFromMapping(mapping) +'\".\"key\" IN (').array(keys).sql(')');
+      
+      const start = new Date();
 
       const rows = await sri4nodeUtils.executeSQL(tx, query)
+      debug('Security db check, securitydb_time='+(new Date() - start)+' ms.')
       return rows.map( r => r.key )  // TODO: verify
     }
   }
@@ -96,8 +99,11 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                   + '&person=' + getPersonFromSriRequest(sriRequest);
     // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
     // (needs change in security API)
-
+    
+    const start = new Date();
+    
     const [ resourcesRaw ] = await doSecurityRequest([{ href: url, verb: 'GET' }])
+    debug('Response security, securitytime='+(new Date() - start)+' ms.')
 
 
     const relevantRawResources = resourcesRaw.filter( rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
