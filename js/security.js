@@ -41,7 +41,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
       // there is no guarantee that the group is mapped in the database      
       const mapping = typeToMapping(rawUrl.pathname);
-      sri4nodeUtils.convertListResourceURLToSQL(mapping, rawUrl.query, false, tx, query)
+      await sri4nodeUtils.convertListResourceURLToSQL(mapping, rawUrl.query, false, tx, query)
       query.sql(' AND \"' + tableFromMapping(mapping) +'\".\"key\" IN (').array(keys).sql(')');
       
       const start = new Date();
