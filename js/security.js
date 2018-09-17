@@ -176,7 +176,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
           let rawRequired = toCheck[idx].type 
           if (toCheck[idx].ability === 'read') {
             // $$meta.deleted=any is only required in case of ability 'read'
-            rawRequired += '?$$meta.deleted=any'
+            rawRequired += sriRequest.containsDeleted ? '?$$meta.deleted=any' : ''
           }
           return ! e.includes(rawRequired) 
         } )) {
