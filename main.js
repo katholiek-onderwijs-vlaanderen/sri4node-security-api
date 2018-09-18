@@ -20,7 +20,7 @@ module.exports = function (defaultComponent, app, pluginConfig) {
 
       const check = async function (tx, sriRequest, elements, operation) {
         await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, operation)
-        console.log('CHECK DONE')
+        //console.log('CHECK DONE')
       }
 
       sriConfig.resources.forEach( resource => {
