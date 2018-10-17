@@ -32,11 +32,11 @@ module.exports = function (defaultComponent, app, pluginConfig) {
       })
     },
 
-    customCheck: function (tx, sriRequest, ability, resource, component) { 
+    customCheck: function (component, tx, sriRequest, elements, operation) {  
         if (component === undefined) {
           component = defaultComponent
         }
-        return security.customCheck(tx, sriRequest, ability, resource, component)
+        return security.checkPermissionOnElements(component, tx, sriRequest, elements, operation)
       },
     customCheckBatch: function (tx, sriRequest, elements) { return security.customCheckBatch(tx, sriRequest, elements) },
     handleNotAllowed: function (sriRequest) { return security.handleNotAllowed(sriRequest) },
