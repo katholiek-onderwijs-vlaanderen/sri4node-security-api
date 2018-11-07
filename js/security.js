@@ -40,8 +40,11 @@ exports = module.exports = function (pluginConfig, sriConfig) {
       const query = sri4nodeUtils.prepareSQL('check-resource-exist');
 
       // there is no guarantee that the group is mapped in the database      
+      
       const mapping = typeToMapping(rawUrl.pathname);
-      await sri4nodeUtils.convertListResourceURLToSQL(mapping, rawUrl.query, false, tx, query)
+      const parameters = _.cloneDeep(rawUrl.query);
+      parameters.expand = 'none';
+      await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, query)
       query.sql(' AND \"' + tableFromMapping(mapping) +'\".\"key\" IN (').array(keys).sql(')');
       
       const start = new Date();
