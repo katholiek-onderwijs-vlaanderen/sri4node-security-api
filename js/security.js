@@ -139,7 +139,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
   }
 
-  async function customCheckBatch(tx, sriRequest, elements) {
+  async function allowedCheckBatch(tx, sriRequest, elements) {
     const batch = elements.map( ({component, resource, ability}) => {
                             if (component === null) throw new SriError({status: 403})  
                             const url = '/security/query/allowed?component=' + component
@@ -192,7 +192,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
   return { 
     checkPermissionOnElements,
-    customCheckBatch,
+    allowedCheckBatch,
     handleNotAllowed
   }
 

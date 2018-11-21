@@ -18,8 +18,8 @@ module.exports = function (defaultComponent, app, pluginConfig) {
 
       this.init(sriConfig);
 
-      const check = async function (tx, sriRequest, elements, operation) {
-        await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, operation)
+      const check = async function (tx, sriRequest, elements, ability) {
+        await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, ability)
         //console.log('CHECK DONE')
       }
 
@@ -32,15 +32,27 @@ module.exports = function (defaultComponent, app, pluginConfig) {
       })
     },
 
-    customCheck: function (component, tx, sriRequest, elements, operation) {  
-        if (component === undefined) {
-          component = defaultComponent
-        }
-        return security.checkPermissionOnElements(component, tx, sriRequest, elements, operation)
-      },
-    customCheckBatch: function (tx, sriRequest, elements) { return security.customCheckBatch(tx, sriRequest, elements) },
-    handleNotAllowed: function (sriRequest) { return security.handleNotAllowed(sriRequest) },
+    checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component) { 
+      if (component === undefined) {
+        component = defaultComponent
+      }
+      if (resourceList.length === 0) {
+        console.log('Warning: checkPermissionOnResourceList with empty resourceList makes no sense!')
+        security.handleNotAllowed(sriRequest)
+      }
+      return security.checkPermissionOnElements(component, tx, sriRequest,
+                                                  resourceList.map( r => { permalink: r } ), ability);
+    },
+    allowedCheck: function (tx, sriRequest, ability, resource, component) {
+      if (component === undefined) {
+        component = defaultComponent
+      }
+      return security.allowedCheckBatch(tx, sriRequest, [{component, resource, ability }])
+    },
+    allowedCheckBatch: function (tx, sriRequest, elements) { return security.allowedCheckBatch(tx, sriRequest, elements) },
+    getOauthValve: () => pluginConfig.oauthValve,
 
-    getOauthValve: () => pluginConfig.oauthValve
+    // NOT intented for public usage, only used by beveiliging_nodejs
+    handleNotAllowed: function (sriRequest) { return security.handleNotAllowed(sriRequest) }
   }
 }
