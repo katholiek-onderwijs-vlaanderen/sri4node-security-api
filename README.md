@@ -11,55 +11,34 @@ Installation is simple using npm :
 
 # Usage
 
-The module exposes a function for each one of the after functions available in a resource in sri4node:
+The basic functionality works 'plug and play' (See sri4node doc about plugins: https://github.com/katholiek-onderwijs-vlaanderen/sri4node#plugins ), you only need to pass the relevant security component to use and the express app. 
 
-- `checkReadPermission`: an afterread function implementation [(Check afterread in sri4node)](https://github.com/dimitrydhondt/sri4node#afterread)
-- `checkInsertPermission`: an afterinsert function implementation [(Check afterinsert in sri4node)](https://github.com/dimitrydhondt/sri4node#afterupdate--afterinsert)
-- `checkUpdatePermission`: an afterupdate function implementation [(Check afterupdate in sri4node)](https://github.com/dimitrydhondt/sri4node#afterupdate--afterinsert)
-- `checkDeletePermission`: a secure function implementation that checks a DELETE method [(Check secure in sri4node)](https://github.com/dimitrydhondt/sri4node#secure)
-
-This modules connects to the sri-security-api and checks permissions on the actions performed. If there are no permissions the promise is
-rejected.
-
-CRUD rules must exist in the sri-security-api for the permissions to work.
-
-In order to use it in a sri4node backend, you need to import the module:
-
-`var sri4nodeSecurity = require('sri4node-security-api');`
-
-This returns a construction function that must be invoked with these parameters:
-
-`var generalSecurity = sri4nodeSecurity(Config, sri4node.utils);`
-
-Where the `Config` object must have the following properties:
-
-- `USER` a valid username to connect to the Security API
-- `PASSWORD` a valid password to connect to the Security API
-- `SECURITY_API_HOST` the host of the Security API
-- `HEADERS` any extra header to be added to the requests to the Security API
-
-The second argument is the `utils` attribute of the sri4node backend [(Check General Utilities)](https://github.com/dimitrydhondt/sri4node#general-utilities)
-
-This returns a constructor function that can be used to build one security module for each component.
-
-For example, for the component persons-api:
-
-`var securityForPersons = generalSecurity('/security/components/persons-api');`
-
-Then it must be hooked to the resource, such as this:
-
+Initialisation example:
 ```
-return {
-  type: '/content',
-  public: false,
-  secure: [security.checkDeletePermission],
-  ...
-  afterread: [security.checkReadPermission],
-  afterupdate: [security.checkUpdatePermission],
-  afterinsert: [security.checkInsertPermission],
-  ...
-};
+const securityPlugin = require('@kathondvla/sri4node-security-api-vsko')('/security/components/persons-api', app);
+		const sri4nodeConfig = 
+	            plugins: [
+	            	securityPlugin
+	            ],
 ```
+During initialisation, this plugin will install a standard security check hook on:
 
-It's important to note that the `checkDeletePermission` method is not an after function. It has the interface of a secure function because it must be checked *before*
-the resource is deleted, unless with the other methods that must be checked *after* it's altered.
+- afterRead: check elements on ability 'read'
+- afterInsert: check elements on ability 'create'
+- afterUpdate: check elements on ability 'update'
+- beforeDelete: check elements on ability 'delete'
+
+This check will retrieve the raw urls allowed for the requsting user on the configured component with the relevant ability. Then it is evaluated wether the elements associated with the request are contained in the allowed raw urls. If this is not the case, a 403 Forbidden is sent.
+
+Besides the standard functionality, following extra functions can be called:
+
+- `checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component)` Checks wheter the permalinks in resourceList are contained in the raw resources return by the security server (similar as the standard checks from above)
+    - resourceList: list of permalinks to check (should be non-empty)
+
+- `allowedCheck: function (tx, sriRequest, ability, resource, component)` Check if {user, ability, resource, component} is allowed by doing an allowed request on the security server. In case where the resource does not exist in the database anymore (e.g. after physical delete) or the in case of a create which is not yet synced in the security server the isAllowed() check fails even for a superuser. Therefore in case of failure of the allowed query on the security server, another check is done to see if the request can be allowed based on superuser acces (This might change with the new security server)
+    - component: optional - if not specified the defaultcomponent specified at initilisation is used
+- `allowedCheckBatch: function (tx, sriRequest, elements) ` Similar check as `allowedCheck` but for multiple {component, resource, ability} at once in batch.
+    - elements: list of {component, resource, ability}
+
+All these functions have no return value. When something is not allowed, a SriError 403 object is thrown.
+
