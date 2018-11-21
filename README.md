@@ -42,3 +42,5 @@ Besides the standard functionality, following extra functions can be called:
 
 All these functions have no return value. When something is not allowed, a SriError 403 object is thrown.
 
+Be aware that the "allowed" query functions on the security server are not optimalize and can take some time. In case your querying with resources specified and you are querying about your own application, checkPermissionOnResourceList is a better choice.
+
