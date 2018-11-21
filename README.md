@@ -34,6 +34,7 @@ Besides the standard functionality, following extra functions can be called:
 
 - `checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component)` Checks wheter the permalinks in resourceList are contained in the raw resources return by the security server (similar as the standard checks from above)
     - resourceList: list of permalinks to check (should be non-empty)
+    - be aware that this function can only be used when you do security queries about your own application as the raw urls returned by security are converted to sql by sri4node for an application specific db lookup.
 
 - `allowedCheck: function (tx, sriRequest, ability, resource, component)` Check if {user, ability, resource, component} is allowed by doing an allowed request on the security server. In case where the resource does not exist in the database anymore (e.g. after physical delete) or the in case of a create which is not yet synced in the security server the isAllowed() check fails even for a superuser. Therefore in case of failure of the allowed query on the security server, another check is done to see if the request can be allowed based on superuser acces (This might change with the new security server)
     - component: optional - if not specified the defaultcomponent specified at initilisation is used
