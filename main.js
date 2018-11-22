@@ -41,7 +41,7 @@ module.exports = function (defaultComponent, app, pluginConfig) {
         security.handleNotAllowed(sriRequest)
       }
       return security.checkPermissionOnElements(component, tx, sriRequest,
-                                                  resourceList.map( r => { permalink: r } ), ability);
+                                                  resourceList.map( r => { return { permalink: r }} ), ability);
     },
     allowedCheck: function (tx, sriRequest, ability, resource, component) {
       if (component === undefined) {
