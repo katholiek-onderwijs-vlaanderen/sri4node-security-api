@@ -1,5 +1,6 @@
 const util = require('util')
 
+
 module.exports = function (defaultComponent, app, pluginConfig) {
   'use strict';
 
@@ -14,13 +15,33 @@ module.exports = function (defaultComponent, app, pluginConfig) {
       security = require('./js/security')(pluginConfig, sriConfig);
     },
 
-    install: function (sriConfig) {
+    install: async function (sriConfig, db) {
 
       this.init(sriConfig);
 
-      const check = async function (tx, sriRequest, elements, ability) {
+      let check = async function (tx, sriRequest, elements, ability) {
         await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, ability)
         //console.log('CHECK DONE')
+      }
+
+      const checkForSecurityBypass = async () => {
+        try {
+          // enable security bypass with following SQL:
+          // > CREATE TABLE security_bypass (enabled boolean);
+          // > INSERT INTO security_bypass VALUES (true);
+          const [ {enabled} ] = await db.any('SELECT enabled FROM security_bypass LIMIT 1;')
+          return enabled;
+        } catch (err) {
+          return false;
+        }
+      }
+      const securityBypass = await checkForSecurityBypass()
+
+      if (securityBypass === true) {
+        check = async function (tx, sriRequest, elements, ability) {
+          // in this mode (part of the security backup plan), everything is allowed as long a user is logged in
+          return (sriRequest.userObject!=null && sriRequest.userObject!=undefined);
+        }
       }
 
       sriConfig.resources.forEach( resource => {
