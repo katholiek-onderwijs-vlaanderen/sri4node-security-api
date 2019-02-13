@@ -45,7 +45,7 @@ var getResourceFromUrl = function (url) {
   'use strict';
 
   const groups = url.match(/^(\/[a-z\/]*[[a-z]+)((\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})|\?|$|\/$)(.*)?$/)
-  if (groups.length > 0) {
+  if (groups != null && groups.length > 0) {
     return groups[1]
   } else {
     return null
