@@ -50,7 +50,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
       const start = new Date();
 
       const rows = await sri4nodeUtils.executeSQL(tx, query)
-      debug('Security db check, securitydb_time='+(new Date() - start)+' ms.')
+      debug('sri4node-security-api | security db check, securitydb_time='+(new Date() - start)+' ms.')
       return rows.map( r => r.key )  // TODO: verify
     }
   }
@@ -77,7 +77,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         console.log('_______________________________________________________________')
         throw 'unexpected.status.in.batch.result'
       }
-      return res.map( r => r.body )
+      return res.map( r => JSON.parse(r.body) )
     } catch (error) {
       console.log('____________________________ E R R O R ____________________________________________________') 
       console.log(error)
@@ -106,10 +106,9 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     const start = new Date();
     
     const [ resourcesRaw ] = await doSecurityRequest([{ href: url, verb: 'GET' }])
-    debug('Response security, securitytime='+(new Date() - start)+' ms.')
+    debug('sri4node-security-api | response security, securitytime='+(new Date() - start)+' ms.')
 
-
-    const relevantRawResources = resourcesRaw.filter( rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
+    const relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
 
     const superUserResource = resourceType + (sriRequest.containsDeleted ? '?$$meta.deleted=any' : '')
     if (relevantRawResources.includes(superUserResource)) {
@@ -117,24 +116,17 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
 
     const keys = elements.map( element => utils.getKeyFromPermalink(element.permalink) )
-    debug('relevantRawResources:')
-    debug(relevantRawResources)
     const keysNotMatched = await pReduce(relevantRawResources, async (keysNeeded, rawEntry) => {
-        debug('NEEDED KEYS:')
-        debug(keysNeeded)
-
       if (keysNeeded.length > 0) {
         const matchedkeys = await (checkRawResourceForKeys(tx, rawEntry, keysNeeded))
-        debug('MATCHED KEYS:')
-        debug(matchedkeys)
-        return keysNeeded.filter( k => !matchedkeys.includes(k) )
+        return _.filter(keysNeeded, k => !matchedkeys.includes(k) )
       } else {
         return []
       }
     }, keys)
 
     if (keysNotMatched.length > 0) {
-      debug(`keysNotMatched: ${keysNotMatched}`)
+      debug(`sri4node-security-api | keysNotMatched: ${keysNotMatched}`)
       handleNotAllowed(sriRequest)
     }
   }
@@ -183,7 +175,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
           }
           return ! e.includes(rawRequired) 
         } )) {
-        debug(`not allowed`)
+        debug(`sri4node-security-api | not allowed`)
         handleNotAllowed(sriRequest)
       }
     }
