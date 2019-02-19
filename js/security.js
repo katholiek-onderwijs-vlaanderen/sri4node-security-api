@@ -77,7 +77,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         console.log('_______________________________________________________________')
         throw 'unexpected.status.in.batch.result'
       }
-      return res.map( r => JSON.parse(r.body) )
+      return res.map( r => r.body )
     } catch (error) {
       console.log('____________________________ E R R O R ____________________________________________________') 
       console.log(error)
