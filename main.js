@@ -15,6 +15,10 @@ module.exports = function (defaultComponent, app, pluginConfig) {
       security = require('./js/security')(pluginConfig, sriConfig);
     },
 
+    setMemResourcesRawInternal: (memResourcesRawInternal) => {
+      security.setMemResourcesRawInternal(memResourcesRawInternal)
+    },
+
     install: async function (sriConfig, db) {
 
       this.init(sriConfig);

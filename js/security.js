@@ -4,7 +4,7 @@ const _ = require('lodash');
 const pMemoize = require('p-memoize');
 const pReduce = require('p-reduce');
 
-const { SriError, debug, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey } = require('sri4node/js/common.js')
+const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey } = require('sri4node/js/common.js')
 
 var utils = require('./utils');
 
@@ -26,6 +26,11 @@ exports = module.exports = function (pluginConfig, sriConfig) {
   const memGet = pMemoize(api.get, {maxAge: 5*60*1000}); // cache requests for 5 minutes
   const memPut = pMemoize(api.put, {maxAge: 5*60*1000}); // cache requests for 5 minutes
 
+  let memResourcesRawInternal = null;
+
+  const setMemResourcesRawInternal = (func) => {
+    memResourcesRawInternal = func;
+  }
 
   const checkRawResourceForKeys = async (tx, rawEntry, keys) => {
     if (utils.isPermalink(rawEntry)) {
@@ -70,18 +75,18 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     try {
       const res = await memPut('/security/query/batch', batch);
       if (res.some( r => (r.status != 200) )) {
-        console.log('_______________________________________________________________')
-        console.log(batch)
-        console.log('-----')
-        console.log(res)
-        console.log('_______________________________________________________________')
+        debug('_______________________________________________________________')
+        debug(batch)
+        debug('-----')
+        debug(res)
+        debug('_______________________________________________________________')
         throw 'unexpected.status.in.batch.result'
       }
       return res.map( r => r.body )
     } catch (error) {
-      console.log('____________________________ E R R O R ____________________________________________________') 
-      console.log(error)
-      console.log('___________________________________________________________________________________________') 
+      error('____________________________ E R R O R ____________________________________________________') 
+      error(error)
+      error('___________________________________________________________________________________________') 
       throw new SriError({status: 503, errors: [{ code: 'security.request.failed',  msg: 'Retrieving security information failed.' }]})
     }    
   }
@@ -91,22 +96,27 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
     if (resourceTypes.length > 1) {
       // Do not allow mixed resource output. Does normally not occur.
-      console.log(`ERR: Mixed resource output:`)
-      console.log(elements)
+      error(`ERR: Mixed resource output:`)
+      error(elements)
       throw new SriError({status: 403})
     }
 
     const [ resourceType ] = resourceTypes
-    const url = '/security/query/resources/raw?component=' + component
-                  + '&ability=' + operation
-                  + '&person=' + getPersonFromSriRequest(sriRequest);
-    // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
-    // (needs change in security API)
-    
-    const start = new Date();
-    
-    const [ resourcesRaw ] = await doSecurityRequest([{ href: url, verb: 'GET' }])
-    debug('sri4node-security-api | response security, securitytime='+(new Date() - start)+' ms.')
+    let resourcesRaw;
+    if (memResourcesRawInternal!==null) {
+      resourcesRaw = await memResourcesRawInternal(sriRequest, tx, component, operation, getPersonFromSriRequest(sriRequest));
+    } else {
+      const url = '/security/query/resources/raw?component=' + component
+                    + '&ability=' + operation
+                    + '&person=' + getPersonFromSriRequest(sriRequest);
+      // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
+      // (needs change in security API)
+      
+      const start = new Date();
+      
+      ([ resourcesRaw ] = await doSecurityRequest([{ href: url, verb: 'GET' }]));
+      debug('sri4node-security-api | response security, securitytime='+(new Date() - start)+' ms.')
+    }
 
     const relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
 
@@ -185,7 +195,8 @@ exports = module.exports = function (pluginConfig, sriConfig) {
   return { 
     checkPermissionOnElements,
     allowedCheckBatch,
-    handleNotAllowed
+    handleNotAllowed,
+    setMemResourcesRawInternal
   }
 
 };
