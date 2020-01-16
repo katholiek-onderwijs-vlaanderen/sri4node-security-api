@@ -1,5 +1,5 @@
 const util = require('util')
-
+const { getPersonFromSriRequest } = require('sri4node/js/common.js')
 
 module.exports = function (defaultComponent, app, pluginConfig) {
   'use strict';
@@ -24,6 +24,11 @@ module.exports = function (defaultComponent, app, pluginConfig) {
       this.init(sriConfig);
 
       let check = async function (tx, sriRequest, elements, ability) {
+        // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
+        if ( defaultComponent==='/security/components/security-api' 
+              && getPersonFromSriRequest(sriRequest)==='app.security' ) {
+          return;
+        }
         await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, ability)
         //console.log('CHECK DONE')
       }
