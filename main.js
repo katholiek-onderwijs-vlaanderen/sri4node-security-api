@@ -25,8 +25,9 @@ module.exports = function (defaultComponent, app, pluginConfig) {
 
       let check = async function (tx, sriRequest, elements, ability) {
         // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
+        const userObject = getPersonFromSriRequest(sriRequest);
         if ( defaultComponent==='/security/components/security-api' 
-              && getPersonFromSriRequest(sriRequest)==='app.security' ) {
+              &&  userObject && userObject.username==='app.security' ) {
           return;
         }
         await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, ability)
