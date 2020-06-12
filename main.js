@@ -5,11 +5,8 @@ module.exports = function (defaultComponent, app, pluginConfig) {
 
   let security;
   return {
-    init: function (sriConfig) {
-      // As the vsko security implementation depends directly on oauth, don't 
-      const oauthValve = require('vsko-authentication')(app);
-      oauthValve.install(sriConfig)
-      pluginConfig.oauthValve = oauthValve
+    init: function (sriConfig, initOauthValve) {
+      pluginConfig.oauthValve = initOauthValve(sriConfig);
 
       security = require('./js/security')(pluginConfig, sriConfig);
     },
