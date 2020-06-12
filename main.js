@@ -1,11 +1,11 @@
 const util = require('util')
 
-module.exports = function (defaultComponent, app, pluginConfig) {
+module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) {
   'use strict';
 
   let security;
   return {
-    init: function (sriConfig, initOauthValve) {
+    init: function (sriConfig) {
       pluginConfig.oauthValve = initOauthValve(sriConfig);
 
       security = require('./js/security')(pluginConfig, sriConfig);
