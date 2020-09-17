@@ -60,6 +60,62 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
   }
 
+  const beforePhaseHook = async (sriRequestMap, jobMap, pendingJobs) => {
+    // collect all keys to check from pending jobs
+    const relevantSriRequests = Array.from(sriRequestMap)
+                                    .filter( ([psId, sriRequest]) => pendingJobs.has(psId) );
+
+    const keysNeeded = [];
+    const rawMap = relevantSriRequests
+                      .reduce( (rawMap, [psId, sriRequest]) => {
+      if (sriRequest.keysToCheckBySecurityPlugin) {
+        const { keys, relevantRawResources } = sriRequest.keysToCheckBySecurityPlugin
+        keysNeeded.push(...keys);
+        relevantRawResources.forEach( u => {
+          if (rawMap.get(u) !== undefined) {
+            rawMap.get(u).keys.push(...keys);
+          } else {
+            rawMap.set(u, { keys, sriRequest })
+          }
+        })
+      }
+      return rawMap;
+    }, new Map() );
+
+    // verify them with local queries
+    const keysNotMatched = await pReduce(rawMap.keys(), async (keysNeeded, rawEntry) => {
+      if (keysNeeded.length > 0) {
+        const { keys, sriRequest } = rawMap.get(rawEntry);
+        const matchedkeys = await (checkRawResourceForKeys(sriRequest.dbT, rawEntry, keys))
+        return _.filter(keysNeeded, k => !matchedkeys.includes(k) )
+      } else {
+        return []
+      }
+    }, keysNeeded);
+
+    if (keysNotMatched.length > 0) {
+      debug(`sri4node-security-api | keysNotMatched: ${keysNotMatched}`)
+
+      relevantSriRequests.forEach( ([psId, sriRequest]) => {
+        if (_.intersection(sriRequest.keysToCheckBySecurityPlugin.keys, keysNotMatched).length > 0) {
+          // this sriRequest has keys wich are not matched by the rawUrls recevied from security
+          try {
+            handleNotAllowed(sriRequest);
+          } catch (err) {
+            if (err instanceof SriError) {
+              jobMap.get(psId).jobEmitter.emit('ready', err);
+            } else {
+              throw err;
+            }
+          }
+        } else {
+          // this sriRequest has no keys wich are not matched by the rawUrls recevied from security => security check succeede
+          sriRequest.keysToCheckBySecurityPlugin = undefined;
+        }
+      });
+    }
+  }
+
 
   function handleNotAllowed(sriRequest) {
       // Notify the oauthValve that the current request is forbidden. The valve might act
@@ -126,19 +182,9 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
 
     const keys = elements.map( element => utils.getKeyFromPermalink(element.permalink) )
-    const keysNotMatched = await pReduce(relevantRawResources, async (keysNeeded, rawEntry) => {
-      if (keysNeeded.length > 0) {
-        const matchedkeys = await (checkRawResourceForKeys(tx, rawEntry, keysNeeded))
-        return _.filter(keysNeeded, k => !matchedkeys.includes(k) )
-      } else {
-        return []
-      }
-    }, keys)
 
-    if (keysNotMatched.length > 0) {
-      debug(`sri4node-security-api | keysNotMatched: ${keysNotMatched}`)
-      handleNotAllowed(sriRequest)
-    }
+    // store keys and relevantRawResources, they will be checked by the beforePhaseHook of this plugin
+    sriRequest.keysToCheckBySecurityPlugin = { keys, relevantRawResources };
   }
 
   async function allowedCheckBatch(tx, sriRequest, elements) {
@@ -196,7 +242,8 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     checkPermissionOnElements,
     allowedCheckBatch,
     handleNotAllowed,
-    setMemResourcesRawInternal
+    setMemResourcesRawInternal,
+    beforePhaseHook
   }
 
 };
