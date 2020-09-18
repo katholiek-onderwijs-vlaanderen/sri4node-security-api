@@ -51,12 +51,13 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
 
       sriConfig.resources.forEach( resource => {
         // security functions should be FIRST function in handler lists
-        resource.beforePhase.unshift(security.beforePhaseHook);
         resource.afterRead.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'read'))
         resource.afterInsert.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'create'))
+        resource.beforeUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))
         resource.afterUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))
         resource.beforeDelete.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'delete'))
       })
+      sriConfig.beforePhase.unshift(security.beforePhaseHook);
     },
 
     checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component) { 
