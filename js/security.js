@@ -103,7 +103,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             handleNotAllowed(sriRequest);
           } catch (err) {
             if (err instanceof SriError) {
-              jobMap.get(psId).jobEmitter.emit('ready', err);
+              jobMap.get(psId).jobEmitter.queue('sriError', err);
             } else {
               throw err;
             }
