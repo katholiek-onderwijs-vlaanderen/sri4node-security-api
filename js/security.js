@@ -97,7 +97,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
       debug(`sri4node-security-api | keysNotMatched: ${keysNotMatched}`)
 
       relevantSriRequests.forEach( ([psId, sriRequest]) => {
-        if (_.intersection(sriRequest.keysToCheckBySecurityPlugin.keys, keysNotMatched).length > 0) {
+        if (sriRequest.keysToCheckBySecurityPlugin && _.intersection(sriRequest.keysToCheckBySecurityPlugin.keys, keysNotMatched).length > 0) {
           // this sriRequest has keys wich are not matched by the rawUrls recevied from security
           try {
             handleNotAllowed(sriRequest);
