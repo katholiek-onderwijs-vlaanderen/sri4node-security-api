@@ -79,6 +79,7 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
     },
     allowedCheckBatch: function (tx, sriRequest, elements) { return security.allowedCheckBatch(tx, sriRequest, elements) },
     getOauthValve: () => pluginConfig.oauthValve,
+    getBaseUrl: () => security.getBaseUrl(),
 
     // NOT intented for public usage, only used by beveiliging_nodejs
     handleNotAllowed: function (sriRequest) { return security.handleNotAllowed(sriRequest) }

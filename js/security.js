@@ -237,13 +237,17 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
   }
 
+  function getBaseUrl() {
+    return configuration.baseUrl;
+  }
 
   return { 
     checkPermissionOnElements,
     allowedCheckBatch,
     handleNotAllowed,
     setMemResourcesRawInternal,
-    beforePhaseHook
+    beforePhaseHook,
+    getBaseUrl
   }
 
 };
