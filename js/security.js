@@ -139,9 +139,10 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         throw 'unexpected.status.in.batch.result'
       }
       return res.map( r => r.body )
-    } catch (error) {
+    } catch (err) {
       error('____________________________ E R R O R ____________________________________________________') 
-      error(error)
+      error(err)
+      error(JSON.stringify(err))
       error('___________________________________________________________________________________________') 
       throw new SriError({status: 503, errors: [{ code: 'security.request.failed',  msg: 'Retrieving security information failed.' }]})
     }    
