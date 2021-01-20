@@ -32,6 +32,12 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     memResourcesRawInternal = func;
   }
 
+  let mergeRawResourcesFun = null;
+
+  const setMergeRawResourcesFun = (func) => {
+    mergeRawResourcesFun = func;
+  }
+
   const checkRawResourceForKeys = async (tx, rawEntry, keys) => {
     if (utils.isPermalink(rawEntry)) {
       const permalinkKey = utils.getKeyFromPermalink(rawEntry)
@@ -175,7 +181,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
       debug('sri4node-security-api | response security, securitytime='+(new Date() - start)+' ms.')
     }
 
-    const relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
+    let relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
 
     const superUserResource = resourceType + (sriRequest.containsDeleted ? '?$$meta.deleted=any' : '')
     if (relevantRawResources.includes(superUserResource)) {
@@ -184,6 +190,14 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
     const keys = elements.map( element => utils.getKeyFromPermalink(element.permalink) )
 
+    if (mergeRawResourcesFun !== null) {
+        // Applications have the possibility to pass a function to merge some of the resources in the relevantRawResources
+        // list in combined raw resources. This way, the length of the relevantRawResources list can be reduced, which 
+        // results in faster security checks.
+        // This needs to be done by the application as only the application knows which resources can be combined.
+        relevantRawResources = mergeRawResourcesFun(relevantRawResources);
+    }
+   
     // store keys and relevantRawResources, they will be checked by the beforePhaseHook of this plugin
     sriRequest.keysToCheckBySecurityPlugin = { keys, relevantRawResources };
   }
@@ -247,6 +261,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     allowedCheckBatch,
     handleNotAllowed,
     setMemResourcesRawInternal,
+    setMergeRawResourcesFun,
     beforePhaseHook,
     getBaseUrl
   }

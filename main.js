@@ -11,8 +11,12 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
       security = require('./js/security')(pluginConfig, sriConfig);
     },
 
-    setMemResourcesRawInternal: (memResourcesRawInternal) => {
-      security.setMemResourcesRawInternal(memResourcesRawInternal)
+    setMemResourcesRawInternal: (func) => {
+      security.setMemResourcesRawInternal(func)
+    },
+
+    setMergeRawResourcesFun: (func) => {
+        security.setMergeRawResourcesFun(func)
     },
 
     install: async function (sriConfig, db) {
