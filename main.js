@@ -11,8 +11,12 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
       security = require('./js/security')(pluginConfig, sriConfig);
     },
 
-    setMemResourcesRawInternal: (memResourcesRawInternal) => {
-      security.setMemResourcesRawInternal(memResourcesRawInternal)
+    setMemResourcesRawInternal: (func) => {
+      security.setMemResourcesRawInternal(func)
+    },
+
+    setMergeRawResourcesFun: (func) => {
+        security.setMergeRawResourcesFun(func)
     },
 
     install: async function (sriConfig, db) {
@@ -25,7 +29,7 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
               &&  sriRequest.userObject && sriRequest.userObject.username==='app.security' ) {
           return;
         }
-        await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, ability)
+        await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, ability, false)
         //console.log('CHECK DONE')
       }
 
@@ -60,7 +64,7 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
       sriConfig.beforePhase.unshift(security.beforePhaseHook);
     },
 
-    checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component) { 
+    checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component, immediately=false) { 
       if (component === undefined) {
         component = defaultComponent
       }
@@ -69,7 +73,7 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
         security.handleNotAllowed(sriRequest)
       }
       return security.checkPermissionOnElements(component, tx, sriRequest,
-                                                  resourceList.map( r => { return { permalink: r }} ), ability);
+                                                  resourceList.map( r => { return { permalink: r }} ), ability, immediately);
     },
     allowedCheck: function (tx, sriRequest, ability, resource, component) {
       if (component === undefined) {
@@ -79,6 +83,7 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
     },
     allowedCheckBatch: function (tx, sriRequest, elements) { return security.allowedCheckBatch(tx, sriRequest, elements) },
     getOauthValve: () => pluginConfig.oauthValve,
+    getBaseUrl: () => security.getBaseUrl(),
 
     // NOT intented for public usage, only used by beveiliging_nodejs
     handleNotAllowed: function (sriRequest) { return security.handleNotAllowed(sriRequest) }

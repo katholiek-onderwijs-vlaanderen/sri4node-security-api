@@ -2,6 +2,7 @@ const util = require('util');
 const urlModule = require('url');
 const _ = require('lodash');
 const pMemoize = require('p-memoize');
+const pMap = require('p-map');
 const pReduce = require('p-reduce');
 
 const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey } = require('sri4node/js/common.js')
@@ -32,88 +33,103 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     memResourcesRawInternal = func;
   }
 
-  const checkRawResourceForKeys = async (tx, rawEntry, keys) => {
-    if (utils.isPermalink(rawEntry)) {
-      const permalinkKey = utils.getKeyFromPermalink(rawEntry)
-      if (keys.includes(permalinkKey)) {
-        return [ permalinkKey ]
-      } else {
-        return []
-      }
-    } else {
-      const rawUrl = urlModule.parse(rawEntry, true);
-      const query = sri4nodeUtils.prepareSQL('check-resource-exist');
+  let mergeRawResourcesFun = null;
 
-      // there is no guarantee that the group is mapped in the database      
-      
-      const mapping = typeToMapping(rawUrl.pathname);
-      const parameters = _.cloneDeep(rawUrl.query);
-      parameters.expand = 'none';
-      await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, query)
-      query.sql(' AND \"' + tableFromMapping(mapping) +'\".\"key\" IN (').array(keys).sql(')');
-      
-      const start = new Date();
-
-      const rows = await sri4nodeUtils.executeSQL(tx, query)
-      debug('sri4node-security-api | security db check, securitydb_time='+(new Date() - start)+' ms.')
-      return rows.map( r => r.key )  // TODO: verify
-    }
+  const setMergeRawResourcesFun = (func) => {
+    mergeRawResourcesFun = func;
   }
 
   const beforePhaseHook = async (sriRequestMap, jobMap, pendingJobs) => {
-    // collect all keys to check from pending jobs
-    const relevantSriRequests = Array.from(sriRequestMap)
-                                    .filter( ([psId, sriRequest]) => pendingJobs.has(psId) );
-
-    const keysNeeded = [];
-    const rawMap = relevantSriRequests
-                      .reduce( (rawMap, [psId, sriRequest]) => {
-      if (sriRequest.keysToCheckBySecurityPlugin) {
-        const { keys, relevantRawResources } = sriRequest.keysToCheckBySecurityPlugin
-        keysNeeded.push(...keys);
-        relevantRawResources.forEach( u => {
-          if (rawMap.get(u) !== undefined) {
-            rawMap.get(u).keys.push(...keys);
-          } else {
-            rawMap.set(u, { keys, sriRequest })
-          }
-        })
-      }
-      return rawMap;
-    }, new Map() );
-
-    // verify them with local queries
-    const keysNotMatched = await pReduce(rawMap.keys(), async (keysNeeded, rawEntry) => {
-      if (keysNeeded.length > 0) {
-        const { keys, sriRequest } = rawMap.get(rawEntry);
-        const matchedkeys = await (checkRawResourceForKeys(sriRequest.dbT, rawEntry, keys))
-        return _.filter(keysNeeded, k => !matchedkeys.includes(k) )
-      } else {
-        return []
-      }
-    }, keysNeeded);
-
-    if (keysNotMatched.length > 0) {
-      debug(`sri4node-security-api | keysNotMatched: ${keysNotMatched}`)
-
-      relevantSriRequests.forEach( ([psId, sriRequest]) => {
-        if (sriRequest.keysToCheckBySecurityPlugin && _.intersection(sriRequest.keysToCheckBySecurityPlugin.keys, keysNotMatched).length > 0) {
-          // this sriRequest has keys wich are not matched by the rawUrls recevied from security
-          try {
-            handleNotAllowed(sriRequest);
-          } catch (err) {
-            if (err instanceof SriError) {
-              jobMap.get(psId).jobEmitter.queue('sriError', err);
-            } else {
-              throw err;
-            }
-          }
-        } else {
-          // this sriRequest has no keys wich are not matched by the rawUrls recevied from security => security check succeede
-          sriRequest.keysToCheckBySecurityPlugin = undefined;
+        // pass all pending sriRequests as list to checkKeysAgainstDatabase
+        const relevantSriRequests = Array.from(sriRequestMap)
+            .filter(([psId, _sriRequest]) => pendingJobs.has(psId))
+            .map(([_psId, sriRequest]) => sriRequest);
+        if (relevantSriRequests.length > 0) {
+            return checkKeysAgainstDatabase(relevantSriRequests);
         }
-      });
-    }
+  }
+
+  const checkKeysAgainstDatabase = async (relevantSriRequests) => {
+        const map = {};
+        const tx = relevantSriRequests[0].dbT;
+
+        relevantSriRequests
+            .forEach(sriRequest => {
+                if (sriRequest.keysToCheckBySecurityPlugin) {
+                    const { keys, relevantRawResources, ability } = sriRequest.keysToCheckBySecurityPlugin;
+                    const resourceType = utils.parseResource(sriRequest.originalUrl).base;
+                    const keyStr = JSON.stringify({ resourceType, ability });
+                    let subMap;
+                    if (map[keyStr] === undefined) {
+                        map[keyStr] = {};
+                    }
+                    subMap = map[keyStr];
+
+                    relevantRawResources.forEach(u => {
+                        if (subMap[u] === undefined) {
+                            subMap[u] = { keys: [], sriRequests: [] };
+                        }
+                        subMap[u].keys.push(...keys);
+                        subMap[u].sriRequests.push(sriRequest);
+                    })
+                }
+            });
+
+        await pMap(Object.keys(map), async keyStr => {
+            console.log(`Checking security for ${keyStr}`);
+            const subMap = map[keyStr];
+
+
+            const query = sri4nodeUtils.prepareSQL('sri4node-security-api-composed-check');
+
+            const allKeys = _.uniq(_.flatten(Object.keys(subMap).map(u => subMap[u].keys)));
+
+            query.sql(`SELECT distinct ck.key FROM
+                   (VALUES ${allKeys.map(k => `('${k}'::uuid)`).join()}) as ck (key)
+                   LEFT JOIN (`);
+
+            await pMap(Object.keys(subMap), async (u, idx) => {
+                const rawUrl = urlModule.parse(u, true);
+                const mapping = typeToMapping(rawUrl.pathname);
+                const parameters = _.cloneDeep(rawUrl.query);
+                parameters.expand = 'none';
+                try {
+                    const test_query = sri4nodeUtils.prepareSQL('sri4node-security-api-temp-check');
+                    await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, test_query);
+
+                    if (idx > 0) {
+                        query.sql('\nUNION ALL\n');
+                    }
+                    await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, query);
+                } catch (err) {
+                    console.warn(`IGNORING erroneous raw resource received from security server: ${u}:`);
+                    console.warn(JSON.stringify(err, null, 2));
+                    console.warn('Check the configuration at the security server!');
+                }
+            }, { concurrency: 1 })
+
+            query.sql(`) sriq 
+                   ON sriq.key = ck.key
+                   WHERE sriq.key IS NULL;`);
+
+            const start = new Date();
+            const keysNotMatched = (await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key);
+            debug('sri4node-security-api | security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+
+            if (keysNotMatched.length > 0) {
+                debug(`sri4node-security-api | keysNotMatched: ${keysNotMatched}`)
+
+                relevantSriRequests.forEach( sriRequest => {
+                    if (sriRequest.keysToCheckBySecurityPlugin && _.intersection(sriRequest.keysToCheckBySecurityPlugin.keys, keysNotMatched).length > 0) {
+                    //   this sriRequest has keys which are not matched by the rawUrls received from security
+                      handleNotAllowed(sriRequest);
+                    } else {
+                      // this sriRequest has no keys which are not matched by the rawUrls received from security => security check succeed
+                      sriRequest.keysToCheckBySecurityPlugin = undefined;
+                    }
+                });
+            }
+        }, { concurrency: 1 });
   }
 
 
@@ -139,15 +155,16 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         throw 'unexpected.status.in.batch.result'
       }
       return res.map( r => r.body )
-    } catch (error) {
+    } catch (err) {
       error('____________________________ E R R O R ____________________________________________________') 
-      error(error)
+      error(err)
+      error(JSON.stringify(err))
       error('___________________________________________________________________________________________') 
       throw new SriError({status: 503, errors: [{ code: 'security.request.failed',  msg: 'Retrieving security information failed.' }]})
     }    
   }
 
-  async function checkPermissionOnElements(component, tx, sriRequest, elements, operation) {
+  async function checkPermissionOnElements(component, tx, sriRequest, elements, operation, immediately=false) {
     const resourceTypes = _.uniq(elements.map( e => utils.getResourceFromUrl(e.permalink) ))
 
     if (resourceTypes.length > 1) {
@@ -174,17 +191,45 @@ exports = module.exports = function (pluginConfig, sriConfig) {
       debug('sri4node-security-api | response security, securitytime='+(new Date() - start)+' ms.')
     }
 
-    const relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
+    let relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType) )
 
-    const superUserResource = resourceType + (sriRequest.containsDeleted ? '?$$meta.deleted=any' : '')
-    if (relevantRawResources.includes(superUserResource)) {
-      return true
+    const superUserResource = resourceType;
+    const superUserResourceInclDeleted = resourceType + '?$$meta.deleted=any';
+    if (sriRequest.containsDeleted) {
+        if (relevantRawResources.includes(superUserResourceInclDeleted)) {
+            return true
+        }
+    } else {
+        if (relevantRawResources.includes(superUserResource) || relevantRawResources.includes(superUserResourceInclDeleted)) {
+            return true
+        }
     }
 
     const keys = elements.map( element => utils.getKeyFromPermalink(element.permalink) )
 
-    // store keys and relevantRawResources, they will be checked by the beforePhaseHook of this plugin
-    sriRequest.keysToCheckBySecurityPlugin = { keys, relevantRawResources };
+    if (mergeRawResourcesFun !== null) {
+        // Applications have the possibility to pass a function to merge some of the resources in the relevantRawResources
+        // list in combined raw resources. This way, the length of the relevantRawResources list can be reduced, which 
+        // results in faster security checks.
+        // This needs to be done by the application as only the application knows which resources can be combined.
+        relevantRawResources = mergeRawResourcesFun(relevantRawResources);
+    }
+   
+    // In case no keys need to be checked for security are found, nothing needs to be done.
+    if (keys.length>0) {
+        if (relevantRawResources.length===0) {
+        // This request has keys for which permission is required but no relevant resources 
+        //  --> obviously we can already disallow the request without any database check.
+            handleNotAllowed(sriRequest);
+        } else {
+            // store keys and relevantRawResources, they will be checked by the beforePhaseHook of this plugin
+            sriRequest.keysToCheckBySecurityPlugin = { keys, relevantRawResources, ability: operation };
+
+            if (immediately) {
+                checkKeysAgainstDatabase([sriRequest]);
+            }
+        }
+    }
   }
 
   async function allowedCheckBatch(tx, sriRequest, elements) {
@@ -237,13 +282,18 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
   }
 
+  function getBaseUrl() {
+    return configuration.baseUrl;
+  }
 
   return { 
     checkPermissionOnElements,
     allowedCheckBatch,
     handleNotAllowed,
     setMemResourcesRawInternal,
-    beforePhaseHook
+    setMergeRawResourcesFun,
+    beforePhaseHook,
+    getBaseUrl
   }
 
 };
