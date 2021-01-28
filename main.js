@@ -29,7 +29,7 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
               &&  sriRequest.userObject && sriRequest.userObject.username==='app.security' ) {
           return;
         }
-        await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, ability)
+        await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, ability, false)
         //console.log('CHECK DONE')
       }
 
@@ -64,7 +64,7 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
       sriConfig.beforePhase.unshift(security.beforePhaseHook);
     },
 
-    checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component) { 
+    checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component, immediately=false) { 
       if (component === undefined) {
         component = defaultComponent
       }
@@ -73,7 +73,7 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
         security.handleNotAllowed(sriRequest)
       }
       return security.checkPermissionOnElements(component, tx, sriRequest,
-                                                  resourceList.map( r => { return { permalink: r }} ), ability);
+                                                  resourceList.map( r => { return { permalink: r }} ), ability, immediately);
     },
     allowedCheck: function (tx, sriRequest, ability, resource, component) {
       if (component === undefined) {

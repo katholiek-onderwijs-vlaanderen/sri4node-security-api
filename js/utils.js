@@ -1,3 +1,50 @@
+// code copy from security server -->
+
+const path=require('path');
+
+// Unfortunatly we seems to have generated invalid UUIDs in the past.
+// (we even have uuids with invalid version like /organisations/efeb7119-60e4-8bd7-e040-fd0a059a2c55)
+// Therefore we cannot use a strict uuid checker like the npm module 'uuid-validate' but do we have to be less strict.
+const isUuid = (uuid) => (uuid.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) != null);
+
+const parseResource = (u) => {
+  if (!u) {
+    return null;
+  }
+
+  const [u1, comment] = (u.includes('#'))
+    ? u.split('#/')
+    : [u, null];
+
+  if (u1.includes('?')) {
+    const splittedUrl = u1.split('?');
+    return {
+      base: splittedUrl[0],
+      id: null,
+      query: splittedUrl[1],
+      comment,
+    };
+  }
+  const pp = path.parse(u1);
+  if (isUuid(pp.name)) {
+    return {
+      base: pp.dir,
+      id: pp.name,
+      query: null,
+      comment,
+    };
+  }
+  return {
+    base: `${(pp.dir !== '/' ? pp.dir : '')}/${pp.name}`,
+    id: null,
+    query: null,
+    comment,
+  };
+};
+
+// <-- code copy from security server
+
+
 var isPermalink = function (href) {
   'use strict';
   return (href.match(/^\/[a-z\/]*\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(\?.*)?$/)!==null)
@@ -163,10 +210,10 @@ module.exports = {
     return rawGroups.filter(reduce);
 
   },
-  getResourceTypeFromPermalink: getResourceTypeFromPermalink,
-  getKeyFromPermalink: getKeyFromPermalink,
-  contains: contains,
-  isPermalink: isPermalink,
-  getResourceFromUrl: getResourceFromUrl
-
+  getResourceTypeFromPermalink,
+  getKeyFromPermalink,
+  contains,
+  isPermalink,
+  getResourceFromUrl,
+  parseResource
 };
