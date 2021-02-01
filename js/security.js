@@ -226,7 +226,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             sriRequest.keysToCheckBySecurityPlugin = { keys, relevantRawResources, ability: operation };
 
             if (immediately) {
-                checkKeysAgainstDatabase([sriRequest]);
+                await checkKeysAgainstDatabase([sriRequest]);
             }
         }
     }
