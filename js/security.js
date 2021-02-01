@@ -94,13 +94,13 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 const parameters = _.cloneDeep(rawUrl.query);
                 parameters.expand = 'none';
                 try {
-                    const test_query = sri4nodeUtils.prepareSQL('sri4node-security-api-temp-check');
-                    await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, test_query);
+                    const sub_query = sri4nodeUtils.prepareSQL('sri4node-security-api-sub-check');
+                    await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, sub_query);
 
                     if (idx > 0) {
                         query.sql('\nUNION ALL\n');
                     }
-                    await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, query);
+                    query.sql('(').appendQueryObject(sub_query).sql(')');
                 } catch (err) {
                     console.warn(`IGNORING erroneous raw resource received from security server: ${u}:`);
                     console.warn(JSON.stringify(err, null, 2));
