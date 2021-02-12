@@ -24,7 +24,6 @@ exports = module.exports = function (pluginConfig, sriConfig) {
   }
 
   const api = require('@kathondvla/sri-client/node-sri-client')(configuration)
-  const memGet = pMemoize(api.get, {maxAge: 5*60*1000}); // cache requests for 5 minutes
   const memPut = pMemoize(api.put, {maxAge: 5*60*1000}); // cache requests for 5 minutes
 
   let memResourcesRawInternal = null;
@@ -118,17 +117,17 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
             if (keysNotMatched.length > 0) {
                 debug(`sri4node-security-api | keysNotMatched: ${keysNotMatched}`)
-
-                relevantSriRequests.forEach( sriRequest => {
-                    if (sriRequest.keysToCheckBySecurityPlugin && _.intersection(sriRequest.keysToCheckBySecurityPlugin.keys, keysNotMatched).length > 0) {
-                    //   this sriRequest has keys which are not matched by the rawUrls received from security
-                      handleNotAllowed(sriRequest);
-                    } else {
-                      // this sriRequest has no keys which are not matched by the rawUrls received from security => security check succeed
-                      sriRequest.keysToCheckBySecurityPlugin = undefined;
-                    }
-                });
             }
+
+            relevantSriRequests.forEach( sriRequest => {
+                if (sriRequest.keysToCheckBySecurityPlugin && _.intersection(sriRequest.keysToCheckBySecurityPlugin.keys, keysNotMatched).length > 0) {
+                    // this sriRequest has keys which are not matched by the rawUrls received from security
+                    handleNotAllowed(sriRequest);
+                } else {
+                    // this sriRequest has no keys which are not matched by the rawUrls received from security => security check succeed
+                    sriRequest.keysToCheckBySecurityPlugin = undefined;
+                }
+            });
         }, { concurrency: 1 });
   }
 
@@ -140,7 +139,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
       pluginConfig.oauthValve.handleForbiddenBySecurity(sriRequest)
 
       // If the valve did not throw an SriError, the default response 403 Forbidden is returned.
-      throw new SriError({status: 403})    
+      throw new SriError({status: 403})
   }
 
   async function doSecurityRequest(batch) {
