@@ -1,6 +1,6 @@
 {
   "name": "@kathondvla/sri4node-security-api",
-  "version": "2.0.42",
+  "version": "2.0.43",
   "description": "A module to connect sri4node backends to the sri security api (https://github.com/rodrigouroz/sri-security-api)",
   "main": "main.js",
   "scripts": {
@@ -25,8 +25,7 @@
   },
   "dependencies": {
     "@kathondvla/sri-client": "1.2.3",
-    "p-map": "^4.0.0",
-    "p-memoize": "^1.0.0",
-    "p-reduce": "^1.0.0"
+    "mem": "^8.0.0",
+    "p-map": "^4.0.0"
   }
 }

@@ -1,12 +1,10 @@
 const util = require('util')
 
-module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) {
-  'use strict';
-
+module.exports = function (pluginConfig) {
   let security;
   return {
     init: function (sriConfig) {
-      pluginConfig.oauthValve = initOauthValve(sriConfig);
+      pluginConfig.oauthValve = pluginConfig.initOauthValve(sriConfig);
 
       security = require('./js/security')(pluginConfig, sriConfig);
     },
@@ -25,11 +23,11 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
 
       let check = async function (tx, sriRequest, elements, ability) {
         // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
-        if ( defaultComponent==='/security/components/security-api' 
+        if ( pluginConfig.defaultComponent==='/security/components/security-api' 
               &&  sriRequest.userObject && sriRequest.userObject.username==='app.security' ) {
           return;
         }
-        await security.checkPermissionOnElements(defaultComponent, tx, sriRequest, elements, ability, false)
+        await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, false)
         //console.log('CHECK DONE')
       }
 
@@ -60,13 +58,20 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
         resource.beforeUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))
         resource.afterUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))
         resource.beforeDelete.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'delete'))
+
+        if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
+             pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
+            resource.afterInsert.push(() => security.clearRawUrlCaches());
+            resource.afterUpdate.push(() => security.clearRawUrlCaches());
+            resource.afterDelete.push(() => security.clearRawUrlCaches());
+        }
       })
       sriConfig.beforePhase.unshift(security.beforePhaseHook);
     },
 
     checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component, immediately=false) { 
       if (component === undefined) {
-        component = defaultComponent
+        component = pluginConfig.defaultComponent
       }
       if (resourceList.length === 0) {
         console.log('Warning: checkPermissionOnResourceList with empty resourceList makes no sense!')
@@ -77,7 +82,7 @@ module.exports = function (defaultComponent, app, pluginConfig, initOauthValve) 
     },
     allowedCheck: function (tx, sriRequest, ability, resource, component) {
       if (component === undefined) {
-        component = defaultComponent
+        component = pluginConfig.defaultComponent
       }
       return security.allowedCheckBatch(tx, sriRequest, [{component, resource, ability }])
     },
