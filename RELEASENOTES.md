@@ -2,6 +2,7 @@
 
 ## 2.0.43 (22-02-2021)
 
+* some bugfixes
 * added possbility to pass a configuration object instead of parameters
 * added possbility to cache the result of raw resources lookup. This mechanism is disabled by default (backwards compatible) and can be configured by setting the securityDbCheckMethod set to  `CacheRawListResults` (cache the result of a combined query for a raw resources list) or `CacheRawResults` (cache the result of individual raw resources) in the configuration object passed to this plugin. Example:
 ```
