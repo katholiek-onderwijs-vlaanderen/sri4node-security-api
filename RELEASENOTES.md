@@ -1,5 +1,19 @@
 # Release Notes
 
+## 2.0.43 (22-02-2021)
+
+* added possbility to pass a configuration object instead of parameters
+* added possbility to cache the result of raw resources lookup. This mechanism is disabled by default (backwards compatible) and can be configured by setting the securityDbCheckMethod set to  `CacheRawListResults` (cache the result of a combined query for a raw resources list) or `CacheRawResults` (cache the result of individual raw resources) in the configuration object passed to this plugin. Example:
+```
+        {
+            defaultComponent: '/security/components/persons-api',
+            app,
+            securityDbCheckMethod: 'CacheRawListResults', 
+            ...
+        } );
+```
+The cache is only used for read operations, and is reset after each write operation to the database.
+
 ## 2.0.40 (28-01-2021)
 
 * refactor to use efficient sql for checking keys against the sri4node database (using left join instead of IN (... ) and union all to check all relevant raw resources at once)
