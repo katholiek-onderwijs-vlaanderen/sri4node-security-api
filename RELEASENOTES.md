@@ -4,7 +4,7 @@
 
 * some bugfixes
 * added possbility to pass a configuration object instead of parameters
-* added possbility to cache the result of raw resources lookup. This mechanism is disabled by default (backwards compatible) and can be configured by setting the securityDbCheckMethod set to  `CacheRawListResults` (cache the result of a combined query for a raw resources list) or `CacheRawResults` (cache the result of individual raw resources) in the configuration object passed to this plugin. Example:
+* added possbility to cache the result of raw resources lookup. This mechanism is disabled by default (backwards compatible) and can be configured by setting the securityDbCheckMethod set to  `CacheRawListResults` (cache the result of a combined query for a raw resources list) or `CacheRawResults` (cache the result of individual raw resources) in the configuration object passed to this plugin. This new feature can only be configured with a configuration object, so a change in how configuration is passed at inialisation of this plugin might be required. Example configuration object:
 ```
         {
             defaultComponent: '/security/components/persons-api',
