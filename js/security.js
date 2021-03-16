@@ -298,25 +298,39 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             }
         }
 
-        const keys = elements.map(element => utils.getKeyFromPermalink(element.permalink))
+        // Deal with permalinks in relevantRawResources. As they don't need to be checked against the database,
+        // we can handle them here already: exclude the keys of the permalinks from keysToCheck and fiter permalinks 
+        // out of relevantRawResources.
+        const allowedPermalinkKeys = [];
+        relevantRawResources = relevantRawResources.filter(rawUrl => {
+            const permalinkKey = utils.getKeyFromPermalink(rawUrl);
+            if (permalinkKey !== null) {
+                allowedPermalinkKeys.push(permalinkKey);
+                return false; // only keep query resources in relevantRawResources
+            }
+            return true;
+        });
 
-        if (mergeRawResourcesFun !== null) {
-            // Applications have the possibility to pass a function to merge some of the resources in the relevantRawResources
-            // list in combined raw resources. This way, the length of the relevantRawResources list can be reduced, which 
-            // results in faster security checks.
-            // This needs to be done by the application as only the application knows which resources can be combined.
-            relevantRawResources = mergeRawResourcesFun(relevantRawResources);
-        }
+        const keysToCheck = elements.map(element => utils.getKeyFromPermalink(element.permalink))
+                                    .filter(key => allowedPermalinkKeys.indexOf(key) < 0);
 
         // In case no keys need to be checked for security are found, nothing needs to be done.
-        if (keys.length > 0) {
+        if (keysToCheck.length > 0) {
+            if (mergeRawResourcesFun !== null) {
+                // Applications have the possibility to pass a function to merge some of the resources in the relevantRawResources
+                // list in combined raw resources. This way, the length of the relevantRawResources list can be reduced, which 
+                // results in faster security checks.
+                // This needs to be done by the application as only the application knows which resources can be combined.
+                relevantRawResources = mergeRawResourcesFun(relevantRawResources);
+            }
+
             if (relevantRawResources.length === 0) {
                 // This request has keys for which permission is required but no relevant resources 
                 //  --> obviously we can already disallow the request without any database check.
                 handleNotAllowed(sriRequest);
             } else {
                 // store keys and relevantRawResources, they will be checked by the beforePhaseHook of this plugin
-                sriRequest.keysToCheckBySecurityPlugin = { keys, relevantRawResources, ability: operation };
+                sriRequest.keysToCheckBySecurityPlugin = { keys: keysToCheck, relevantRawResources, ability: operation };
 
                 if (immediately) {
                     await checkKeysAgainstDatabase([sriRequest]);
