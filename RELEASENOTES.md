@@ -1,5 +1,9 @@
 # Release Notes
 
+## 2.0.46 (18-03-2021)
+* bugfix: pass sriRequestID with SriError to indicate on which sriRequest an error was thrown in a global hook, otherwise sri4node indicates the error in a random element of the batch in the JSON result instead of the one causing the error (requires sri4node sprint-239-0 or later) 
+* bugfix: deal with permalinks received as raw urls from security (was probably broken since the refactor to optimize batch security by combining checks of all batch elements)
+
 ## 2.0.43 (22-02-2021)
 
 * some bugfixes
