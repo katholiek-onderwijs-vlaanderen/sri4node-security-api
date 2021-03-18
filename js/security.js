@@ -233,7 +233,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         pluginConfig.oauthValve.handleForbiddenBySecurity(sriRequest)
 
         // If the valve did not throw an SriError, the default response 403 Forbidden is returned.
-        throw new SriError({ status: 403 })
+        throw new SriError({ status: 403, sriRequestID: sriRequest.id })
     }
 
     async function doSecurityRequest(batch) {
