@@ -87,6 +87,7 @@ module.exports = function (pluginConfig) {
       return security.allowedCheckBatch(tx, sriRequest, [{component, resource, ability }])
     },
     allowedCheckBatch: function (tx, sriRequest, elements) { return security.allowedCheckBatch(tx, sriRequest, elements) },
+    allowedCheckWithRawAndIsPartOfBatch: function (tx, sriRequest, elements) { return security.allowedCheckWithRawAndIsPartOfBatch(tx, sriRequest, elements) },    
     getOauthValve: () => pluginConfig.oauthValve,
     getBaseUrl: () => security.getBaseUrl(),
 

@@ -2,10 +2,13 @@ const util = require('util');
 const urlModule = require('url');
 const _ = require('lodash');
 const pMap = require('p-map');
+const pEvery = require('p-every');
 const memoized = require('mem');
 
 
-const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey } = require('sri4node/js/common.js')
+const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey, parseResource } = require('sri4node/js/common.js')
+
+const SriClientError = require('@kathondvla/sri-client/sri-client-error');
 
 var utils = require('./utils');
 
@@ -15,7 +18,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
     const sri4nodeUtils = sriConfig.utils
 
-    const configuration = {
+    const securityConfiguration = {
         baseUrl: pluginConfig.securityApiBase,
         headers: pluginConfig.headers,
         username: pluginConfig.auth.user,
@@ -23,11 +26,28 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         accessToken: pluginConfig.accessToken
     }
 
-    const api = require('@kathondvla/sri-client/node-sri-client')(configuration)
-    const memPut = memoized(api.put, { 
+    const securityApi = require('@kathondvla/sri-client/node-sri-client')(securityConfiguration)
+    const memPut = memoized(securityApi.put.bind(securityApi), { 
         maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
         cacheKey: args => JSON.stringify(args),
     });
+
+    const apiConfiguration = {
+        baseUrl: pluginConfig.apiBase,
+        headers: pluginConfig.headers,
+        username: pluginConfig.auth.user,
+        password: pluginConfig.auth.pass,
+        accessToken: pluginConfig.accessToken
+    }
+    apiConfiguration.headers['Content-type'] = 'application/json; charset=utf-8';
+
+    const api = require('@kathondvla/sri-client/node-sri-client')(apiConfiguration)
+    const apiPost = memoized(api.post.bind(api), { 
+        maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
+        cacheKey: args => JSON.stringify(args),
+    });
+
+
 
     let memResourcesRawInternal = null;
 
@@ -389,13 +409,97 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         }
     }
 
+    async function allowedCheckWithRawAndIsPartOfBatch(tx, sriRequest, elements) {
+        const componentAbilitiesNeeded = _.uniqBy( elements.map(({ component, _resource, ability }) => ({ component, ability }) )
+                                                 , ({ component, ability }) => `${component}!=!${ability}` );
+
+        const rawBatch = componentAbilitiesNeeded
+                            .map(({ component, ability }) => {
+                                if (component === null) throw new SriError({ status: 403 })
+                                const url = '/security/query/resources/raw?component=' + component
+                                    + '&person=' + getPersonFromSriRequest(sriRequest)
+                                    + '&ability=' + ability ;
+                                return { href: url, verb: 'GET' }
+                            });
+
+        const rawMap = new Map(_.zip( componentAbilitiesNeeded.map(({ component, ability }) => `${component}!=!${ability}`)
+                                    , await doSecurityRequest(rawBatch)));
+
+        if (!await pEvery(elements, async ({ component, resource, ability }) => {
+            const rawResourcesList = rawMap.get(`${component}!=!${ability}`);
+            const { type: resourceType } = urlToTypeAndKey(resource);
+            const superuserRawUrl = `${resourceType}?$$meta.deleted=any`
+            if (rawResourcesList.includes(superuserRawUrl)) {
+                debug(`super_user rights on ${resourceType}`)
+                return true;
+            }
+
+            const relevantQueries = new Set();
+
+            rawResourcesList.forEach((u) => {
+              const { base: rawResourceType } = parseResource(u)
+              if (rawResourceType === resourceType) {
+                relevantQueries.add(u);
+              }
+            });
+
+            const rqList = Array.from(relevantQueries);
+            if (relevantQueries.size > 0) {
+                try {
+                    if (rqList.includes(resource)) {
+                        // shortcut when raw resources directly contains the resource permalink
+                        return true;
+                    }
+
+                    debug(`API CALL TO ${resourceType}/ispartof for ${resource} <-> ${rqList}`);
+                    const result = await apiPost(`${resourceType}/ispartof`,
+                    {
+                      a: { href: resource },
+                      b: { hrefs: rqList },
+                    });
+                    debug(`API result: ${result.length}`);
+                    return (result.length > 0);
+                } catch (err) {
+                    error(`CATCHED ERROR on ${resourceType}/ispartof for ${resource} and ${rqList}`);
+                    if ((err instanceof SriClientError) && (err.status === 404)) {
+                      throw new sriRequest.SriError({
+                        status: 500,
+                        errors: [{
+                          code: 'isPartOf.not.implemented',
+                          msg: `isPartOf seems to be unimplemented on ${resourceType}`,
+                          err: err.body,
+                        }],
+                      });
+                    } else {
+                      error(JSON.stringify(err));
+                      throw new sriRequest.SriError({
+                        status: 500,
+                        errors: [{
+                          code: 'isPartOf.failed',
+                          msg: `isPartOf has failed on ${resource}`,
+                          status: err.status,
+                          err: err.body,
+                        }],
+                      });
+                    }
+                }
+            } else {
+                return false;
+            }
+        }, {concurrency: 1})) {
+            debug(`sri4node-security-api | not allowed`)
+            handleNotAllowed(sriRequest)
+        }
+    }
+
     function getBaseUrl() {
-        return configuration.baseUrl;
+        return securityConfiguration.baseUrl;
     }
 
     return {
         checkPermissionOnElements,
         allowedCheckBatch,
+        allowedCheckWithRawAndIsPartOfBatch,
         handleNotAllowed,
         setMemResourcesRawInternal,
         setMergeRawResourcesFun,
