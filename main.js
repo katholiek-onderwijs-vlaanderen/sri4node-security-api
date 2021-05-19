@@ -2,11 +2,16 @@ const util = require('util')
 
 module.exports = function (pluginConfig) {
   let security;
+  let pglistener;
   return {
-    init: function (sriConfig) {
+    init: function (sriConfig, db) {
       pluginConfig.oauthValve = pluginConfig.initOauthValve(sriConfig);
 
       security = require('./js/security')(pluginConfig, sriConfig);
+      if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
+            pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {      
+        pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches);
+      }
     },
 
     setMemResourcesRawInternal: (func) => {
@@ -19,7 +24,7 @@ module.exports = function (pluginConfig) {
 
     install: async function (sriConfig, db) {
 
-      this.init(sriConfig);
+      this.init(sriConfig, db);
 
       let check = async function (tx, sriRequest, elements, ability) {
         // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
@@ -61,9 +66,9 @@ module.exports = function (pluginConfig) {
 
         if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
              pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
-            resource.afterInsert.push(() => security.clearRawUrlCaches());
-            resource.afterUpdate.push(() => security.clearRawUrlCaches());
-            resource.afterDelete.push(() => security.clearRawUrlCaches());
+            resource.afterInsert.push(() => pglistener.sendNotification());
+            resource.afterUpdate.push(() => pglistener.sendNotification());
+            resource.afterDelete.push(() => pglistener.sendNotification());
         }
       })
       sriConfig.beforePhase.unshift(security.beforePhaseHook);

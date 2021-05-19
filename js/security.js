@@ -134,7 +134,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     const memoizedRawUrlListToKeySet = memoized(rawUrlListToKeySet, { cacheKey: args => args[0].join('|') });
 
     const clearRawUrlCaches = () => {
-        debug('  ** cleaning rawUrl caches **')
+        debug('sri4node-security-api | ** cleaning rawUrl caches **')
         memoized.clear(memoizedRawUrlToKeySet);
         memoized.clear(memoizedRawUrlListToKeySet);
     }
