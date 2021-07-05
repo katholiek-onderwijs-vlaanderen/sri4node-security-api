@@ -1,15 +1,17 @@
 const util = require('util')
 
-module.exports = function (pluginConfig) {
-  let security;
-  let pglistener;
-  return {
+let security = null;
+let pglistener = null;
+let pluginConfig = null;
+
+module.exports = {
     init: function (sriConfig, db) {
+      pluginConfig = sriConfig.composedSecurityPluginConfig;
       pluginConfig.oauthValve = pluginConfig.initOauthValve(sriConfig);
 
       security = require('./js/security')(pluginConfig, sriConfig);
       if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
-            pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {      
+            pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
         pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches);
       }
     },
@@ -98,5 +100,4 @@ module.exports = function (pluginConfig) {
 
     // NOT intented for public usage, only used by beveiliging_nodejs
     handleNotAllowed: function (sriRequest) { return security.handleNotAllowed(sriRequest) }
-  }
-}
+};

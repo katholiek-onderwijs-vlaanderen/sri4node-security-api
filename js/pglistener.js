@@ -35,11 +35,11 @@ exports = module.exports = function (db, funToRunAtNotification) {
         removeListeners(e.client);
         reconnect(5000, 10) // retry 10 times, with 5-second intervals
             .then(() => {
-                debug('sri4node-security-api | pglistener - successfully reconnected.');
+                debug('sri4node-security-api', 'pglistener - successfully reconnected.');
             })
             .catch(() => {
                 // failed after 10 attempts
-                error('sri4node-security-api | pglistener - Connection Lost Permanently -> exiting.');
+                error('sri4node-security-api', 'pglistener - Connection Lost Permanently -> exiting.');
                 process.exit(); // exiting the process
             });
     }
@@ -81,10 +81,10 @@ exports = module.exports = function (db, funToRunAtNotification) {
 
     reconnect() // = same as reconnect(0, 1)
         .then(obj => {
-            debug('sri4node-security-api | pglistener - successful initial connection');
+            debug('sri4node-security-api', 'pglistener - successful initial connection');
         })
         .catch(err => {
-            error('sri4node-security-api | pglistener - failed initial connection:');
+            error('sri4node-security-api', 'pglistener - failed initial connection:');
             error(err);
         });
 
