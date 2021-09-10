@@ -1,6 +1,6 @@
 // code copy from security server -->
 
-const path=require('path');
+const path = require('path');
 
 // Unfortunatly we seems to have generated invalid UUIDs in the past.
 // (we even have uuids with invalid version like /organisations/efeb7119-60e4-8bd7-e040-fd0a059a2c55)
@@ -202,6 +202,104 @@ var reduce = function (group, index, array) {
 };
 
 /**
+ * Equal in this context means (we are asuming 'domain-less'/relative urls)
+ * that the paths are equal, and all the query params! 
+ * 
+ * @param {URL} parsedUrl1 
+ * @param {URL} parsedUrl2 
+ */
+function parsedUrlsAreEqual(parsedUrl1, parsedUrl2) {
+
+}
+
+/**
+ * Returns a new URL with a modifed searchParams object.
+ * All the keys that appear in the queryParamsToStrip set will be removed.
+ * All the other keys will be kept.
+ * 
+ * @param {URL} parsedUrl 
+ * @param {Set<String>} queryParamsToStrip
+ * @returns {URL}
+ */
+function stripQueryParamsFromParsedUrl(parsedUrl, queryParamsToStrip = new Set()) {
+  const strippedQueryParams = [...parsedUrl.searchParams.entries()]
+    .filter(([key, value]) => !queryParamsToStrip.has(key));
+  let retVal = new URL(parsedUrl);
+  retVal.search = new URLSearchParams(strippedQueryParams).toString();
+  return retVal;
+}
+
+/**
+ * 
+ * @param {*} parsedUrl1 
+ * @param {*} parsedUrl2 
+ */
+function urlIsPartOfOtherUrl(parsedUrl1, parsedUrl2) {
+
+}
+
+/**
+ * @typedef {'NONE' | 'NORMAL' | 'AGGRESSIVE'} OptimisationMode
+
+ * @typedef {object} OptimisationOptions
+ *  @property {OptimisationMode} mode
+ *  @property {string[]} extendingQueryParams
+ */
+
+/**
+ * Turns a string into a url object (with 'some' domain)
+ * that you don't care about because your string represents a
+ * relative url like /persons for example (instead of https://my.domain.com/persons)
+ * 
+ * @param {String} path 
+ * @returns {URL}
+ */
+function relativePathToUrlObj(path) {
+  return new URL(path, 'https://xyz.com');
+}
+
+const specialSriQueryParams = new Set([
+  'limit',
+  'offset',
+  'keyOffset',
+  'expand',
+  '$$includeCount',
+])
+/**
+ * Will remove 'special' query params from the url
+ * @param {URL} parsedUrl
+ * @return {URL}
+ */
+function stripSpecialSriQueryParamsFromParsedUrl(parsedUrl) {
+  return stripQueryParamsFromParsedUrl(parsedUrl, specialSriQueryParams);
+}
+
+/**
+ * Returns the same query params string, but sorted
+ * so limit=5&expand=NONE&dateOfBirth=2000-01-01
+ * will return dateOfBirth=2000-01-01&expand=NONE&limit=5
+ * 
+ * @param {String} queryParamsString 
+ * @returns {String}
+ */
+ function sortSearchParamString(queryParamsString) {
+  const queryParamsSorted = new URLSearchParams(queryParamsString);
+  queryParamsSorted.sort();
+  return queryParamsSorted.toString();
+}
+
+/**
+ * 
+ * @param {URL} strippedUrl 
+ * @param {URL} relativePathToUrlObj 
+ * @returns {Boolean}
+ */
+function pathNameAndSearchParamsAreEqual(parsedUrl1, parsedUrl2) {
+  return parsedUrl1.pathname === parsedUrl2.pathname &&
+    sortSearchParamString(parsedUrl1.searchParams) === sortSearchParamString(parsedUrl2.searchParams);
+}
+
+/**
  * This function will be used for optimizing heavily how the plugin decides
  * that a certain list url can be read.
  * We do this wy comparing the path part of the urls, with the list of raw urls
@@ -224,19 +322,24 @@ var reduce = function (group, index, array) {
  *        extendingQueryParams: [ '' ], // only used in AGGRESSIVE mode
  * },
  * 
- * @param {*} currentPath 
- * @param {*} rawPaths 
- * @param {*} optimisationOptions
+ * @param {String} currentPath 
+ * @param {Set<String>} rawPaths 
+ * @param {OptimisationOptions} optimisationOptions
+ * 
+ * @returns {Boolean}
  */
-function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOptions) {
+function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOptions = {}) {
   if (optimisationOptions.mode === 'NONE') {
     return false;
   } else if (optimisationOptions.mode === 'NORMAL') {
-    return false;
+    const strippedUrl = stripSpecialSriQueryParamsFromParsedUrl(relativePathToUrlObj(currentPath));
+    return [...rawPaths].some(
+      p => pathNameAndSearchParamsAreEqual(strippedUrl, relativePathToUrlObj(p))
+    );
   } else if (optimisationOptions.mode === 'AGGRESSIVE') {
     return false;
   } else {
-    throw '[isPathAllowedBasedOnRawUrls] optismisationOptions.mode not known';
+    throw Error('[isPathAllowedBasedOnRawUrls] optimisationOptions.mode not known');
   }
 }
 
@@ -255,5 +358,6 @@ module.exports = {
   isPermalink,
   getResourceFromUrl,
   parseResource,
+  stripQueryParamsFromParsedUrl,
   isPathAllowedBasedOnResourcesRaw,
 };
