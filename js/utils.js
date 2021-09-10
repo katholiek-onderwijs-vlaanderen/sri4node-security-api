@@ -136,14 +136,17 @@ function pathNameAndSearchParamsAreEqual(parsedUrl1, parsedUrl2) {
 }
 
 /**
+ * We want to know if the first url would procude a subset of the results
+ * of the second url.
+ * Check if at least all query params found on the right side are also found
+ * on the left side with the same value and make an exception for the
+ * queryParamsThatNotExclusivelyLimitTheResultSet
  * 
  * @param {URLSearchParams} parsedUrl1 
  * @param {URLSearchParams} parsedUrl2 
  * @param {Array<String>} queryParamsThatNotExclusivelyLimitTheResultSet 
  */
 function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryParamsThatNotExclusivelyLimitTheResultSet) {
-  // check if at least all query params found on the right side are also found on the left side with the same value
-  // and make an exception for the queryParamsThatNotExclusivelyLimitTheResultSet
 
   const leftEntries = [...urlSearchParams1.entries()];
   const rightEntries = [...urlSearchParams2.entries()];
@@ -157,7 +160,8 @@ function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPara
     // it might produce a subset, but in order to be sure, we need to know that none of the remaining
     // params are params that might extend or shift the result (instead of purely limiting it)
     const onlyLeftEntries = leftEntries.filter(([key, value]) => !urlSearchParams2.has(key) || urlSearchParams2.get(key) !== value);
-    return !onlyLeftEntries.some(([key, value]) => queryParamsThatNotExclusivelyLimitTheResultSet.includes(key));
+    const someOnlyLeftEntriesCouldExtendOrShiftTheResultset = onlyLeftEntries.some(([key, value]) => queryParamsThatNotExclusivelyLimitTheResultSet.includes(key));
+    return !someOnlyLeftEntriesCouldExtendOrShiftTheResultset;
   }
 }
 
@@ -232,7 +236,7 @@ function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOpt
     ];
     return [...rawPaths].some(
       p => pathNameIsEqualAndSearchParamsProduceSubset(strippedUrl, relativePathToUrlObj(p), queryParamsThatNotExclusivelyLimitTheResultSet)
-            || pathNameAndSearchParamsAreEqual(url, relativePathToUrlObj(p))  // allow exact match incuding SpecialSriQueryParams
+            || pathNameIsEqualAndSearchParamsProduceSubset(url, relativePathToUrlObj(p), queryParamsThatNotExclusivelyLimitTheResultSet)  // allow exact match incuding SpecialSriQueryParams
     );
   } else if (optimisationOptions.mode === 'AGGRESSIVE') {
     const strippedUrl = stripSpecialSriQueryParamsFromParsedUrl(relativePathToUrlObj(currentPath));
@@ -248,5 +252,6 @@ module.exports = {
   getResourceFromUrl,
   getKeyFromPermalink,
   stripQueryParamsFromParsedUrl,
-  isPathAllowedBasedOnResourcesRaw
+  searchParamsProduceSubset,
+  isPathAllowedBasedOnResourcesRaw,
 };

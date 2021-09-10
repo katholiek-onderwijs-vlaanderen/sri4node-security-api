@@ -5,7 +5,7 @@ const { assert } = require('chai');
 // const sri4nodeUtilsMock = require('./sri4nodeUtilsMock');
 const { describe, before, it } = require('mocha');
 
-const { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl } = require('../js/utils')
+const { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl, searchParamsProduceSubset } = require('../js/utils')
 
 const optionsOptimisationModeNone = { mode: 'NONE' };
 const optionsOptimisationModeNormal = { mode: 'NORMAL' };
@@ -351,6 +351,113 @@ describe('stripQueryParamsFromParsedUrl(...)', function () {
       '',
     );
   });
+});
+
+
+describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryParamsThatNotExclusivelyLimitTheResultSet)', function () {
+  'use strict';
+
+  const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
+
+  before(function () {});
+
+  it('should return true if left has all or more params than right', function () {
+    assert.isTrue(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
+        new URLSearchParams('sex=MALE'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    )
+  });
+
+  it('should return true if both sides contain exactly the same queryParamThatNotExclusivelyLimitsTheResultSet', function () {
+    assert.isTrue(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01&nonLimitingQueryParam=hello'),
+        new URLSearchParams('sex=MALE&nonLimitingQueryParam=hello'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    );
+
+    assert.isTrue(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01&$$meta.deleted=any'),
+        new URLSearchParams('sex=MALE&$$meta.deleted=any'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    );
+  });
+
+  it('should return false if left has less params than right', function () {
+    const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
+
+    assert.isFalse(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE'),
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    );
+  });
+
+  it('should return false if only left has a non limiting query param', function () {
+    const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
+
+    assert.isFalse(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&$$meta.deleted=true'),
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    );
+
+    assert.isFalse(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&$$meta.deleted=false'),
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    );
+
+    assert.isFalse(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&$$meta.deleted=any'),
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    );
+
+  });
+
+  it('should return false if both left and right have a non limiting query param, but the value is different', function () {
+    const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
+
+    assert.isFalse(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&$$meta.deleted=true'),
+        new URLSearchParams('sex=MALE&$$meta.deleted=false'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    );
+
+    assert.isFalse(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&$$meta.deleted=true'),
+        new URLSearchParams('sex=MALE&$$meta.deleted=any'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    );
+
+    assert.isFalse(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01&$$meta.deleted=false'),
+        new URLSearchParams('sex=MALE&$$meta.deleted=any'),
+        queryParamsThatNotExclusivelyLimitTheResultSet,
+      ),
+    );
+  });
+
 });
 
 
