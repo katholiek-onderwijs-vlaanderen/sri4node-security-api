@@ -59,9 +59,19 @@ function stripQueryParamsFromParsedUrl(parsedUrl, queryParamsToStrip = new Set()
 /**
  * @typedef {'NONE' | 'NORMAL' | 'HIGH' | 'AGGRESSIVE'} OptimisationMode
  *
+ * @typeDef {object} MultiValuedPropertyConfig
+ *  @property {String} name
+ *  @property {String} aliases
+ *  @property {Boolean} moreCommaSeparatedValuesProduceASmallerSubset
+ *  @property {object} correspondingSingleValuedProperty
+ *    @property {String} name
+ *    @property {String} aliases
+ * 
+ *
  * @typedef {object} OptimisationOptions
  *  @property {OptimisationMode} mode
  *  @property {string[]} queryParamsThatNotExclusivelyLimitTheResultSet
+ *  @property {MultiValuedPropertyConfig} multiValuedPropertyConfig
  */
 
 /**
@@ -197,6 +207,7 @@ function pathNameIsEqualAndSearchParamsProduceSubset(parsedUrl1, parsedUrl2, que
  *          results, that we can safely assume that if security returns a url /persons?x=...
  *          that /persons?x=...&y=... will be a SUBSET and thus be allowed.
  *          In this mode it is vital that we also provide a list of exceptions
+ *          called 'queryParamsThatNotExclusivelyLimitTheResultSet'
  *          ($$meta.deleted=... is one "hardcoded" exception, but the user might add other ones).
  *          Any query param in that exception list will be assumed to potentially expand the
  *          resultset (or completely change it like $$meta.deleted=true) rather than strictly
@@ -205,10 +216,23 @@ function pathNameIsEqualAndSearchParamsProduceSubset(parsedUrl1, parsedUrl2, que
  *          /persons?href=/persons/123 would be equal to raw urls
  *            - /persons/123
  *            - /persons?hrefIn=/persons/123,/persons/456
+ *          In this mode we also need a multiValuedPropertyConfig which is an array of objects
+ *          that describes names and aliases of custom filters that can have more values (for
+ *          example: roots=guidA,guidB,guidC)
+ * 
  * example:
  * {
- *        mode: 'AGGRESSIVE', // NONE | SAFE (default) | AGGRESSIVE
- *        queryParamsThatNotExclusivelyLimitTheResultSet: [ '' ], // only used in HIGH and AGGRESSIVE mode
+ *    mode: 'AGGRESSIVE', // NONE | SAFE (default) | AGGRESSIVE
+ *    queryParamsThatNotExclusivelyLimitTheResultSet: [ '' ], // only used in HIGH and AGGRESSIVE mode
+ *    multiValuedPropertyConfig: [
+ *      name: 'roots',      // MANDATORY
+ *      aliasses: 'rootIn'  // OPTIONAL
+ *      correspondingSingleValuedProperty: { // OPTIONAL
+ *        name: 'root',
+ *        aliases: 'wortel',
+ *      }
+ *      moreCommaSeparatedValuesProduceASmallerSubset: false, // MANDATORY crash with a clear error message when it's missing
+ *    ]
  * },
  * 
  * @param {String} currentPath 
