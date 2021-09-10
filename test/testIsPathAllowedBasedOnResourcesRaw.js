@@ -7,9 +7,16 @@ const { describe, before, it } = require('mocha');
 
 const { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl } = require('../js/utils')
 
-const optionsOptimisationModeNone = { mode: 'NONE' }
-const optionsOptimisationModeNormal = { mode: 'NORMAL' }
-const optionsOptimisationModeAggressive = { mode: 'AGGRESSIVE' }
+const optionsOptimisationModeNone = { mode: 'NONE' };
+const optionsOptimisationModeNormal = { mode: 'NORMAL' };
+const optionsOptimisationModeHigh = {
+  mode: 'HIGH',
+  queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
+};
+const optionsOptimisationModeAggressive = {
+  mode: 'AGGRESSIVE',
+  queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
+};
 
 const someGuid = 'c005ac30-1b04-46f9-8fb0-df622b27e793';
 
@@ -203,8 +210,182 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is NORMAL
       isPathAllowedBasedOnResourcesRaw(
         '/persons?sex=MALE&limit=500&offset=3',
         ['/persons?sex=FEMALE', `/persons/${someGuid}`],
-        optionsOptimisationModeNone
+        optionsOptimisationModeNormal,
       ),
     );
   });
+});
+
+
+describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is HIGH', function () {
+  'use strict';
+
+  it('should return true if the currentPath is literally to be found in the raw resources list', function () {
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE', 
+        ['/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+  });
+
+  it('should return true if the currentPath without special query params is found in the raw resources list', function () {
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500',
+        ['/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500&$$includeCount=true',
+        ['/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500&$$includeCount=false',
+        ['/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?title=MIJNHEER&offset=3',
+        ['/persons?title=MIJNHEER', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh
+      ),
+    );
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/sam/organisationalunits/externalidentifiers?limit=5000&keyOffset=2018-09-18T18%3A36%3A17.623499Z,37472e60-15f8-4c48-bf4f-1d47e41dd164',
+        ['/sam/organisationalunits/externalidentifiers', '/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500&offset=3',
+        ['/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+  });
+
+  it('should return true if the currentPath (without special query params) is found to be a subset of one found in the raw resources list', function () {
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500',
+        ['/persons'],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&title=Mijnheer',
+        ['/persons?title=Mijnheer', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isTrue(
+      isPathAllowedBasedOnResourcesRaw(
+        '/sam/organisationalunits/externalidentifiers?type=INSTITUTIONNUMBER&modifiedSince=2020-05-03&limit=5000&keyOffset=2018-09-18T18%3A36%3A17.623499Z,37472e60-15f8-4c48-bf4f-1d47e41dd164',
+        ['/sam/organisationalunits/externalidentifiers?type=INSTITUTIONNUMBER', '/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500&offset=3',
+        ['/persons?sex=FEMALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh
+      ),
+    );
+  });
+
+  it('should return false if the currentPath (without special query params) is no subset of any url found in the raw resources list', function () {
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500',
+        ['/persons?sex=FEMALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE',
+        ['/persons?title=Mijnheer', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/sam/organisationalunits/externalidentifiers?limit=5000&keyOffset=2018-09-18T18%3A36%3A17.623499Z,37472e60-15f8-4c48-bf4f-1d47e41dd164',
+        ['/sam/organisationalunits/externalidentifiers?type=INSTITUTIONNUMBER', '/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500&offset=3',
+        ['/persons?sex=FEMALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh
+      ),
+    );
+  });
+
+  it('should return false if currentPath (without special query params) contains a query param that expands or totally modifies the resultset (like $$meta.deleted=any or true) so that it is potentially no subset anymore of any url found in the raw resources list', function () {
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500&$$meta.deleted=any',
+        ['/persons?sex=FEMALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&$$meta.deleted=true',
+        ['/persons', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    // surprising maybe, but the HIGH mode should not be so smart as to know that $$meta.deleted=false is the same as not specifying that query param
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/sam/organisationalunits/externalidentifiers?type=INSTITUTIONNUMBER&$$meta.deleted=false&limit=5000&keyOffset=2018-09-18T18%3A36%3A17.623499Z,37472e60-15f8-4c48-bf4f-1d47e41dd164',
+        ['/sam/organisationalunits/externalidentifiers?type=INSTITUTIONNUMBER', '/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500&offset=3&myextendingqueryparam=123',
+        ['/persons?sex=MALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh
+      ),
+    );
+    // the other way around should also not be so smart to assume that an extending query param 
+    // in te
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500&offset=3',
+        ['/persons?sex=MALE&myextendingqueryparam=123', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh
+      ),
+    );
+  });
+
+  it('should return false if currentPath (without special query params) contains a query param that expands or totally modifies the resultset (like $$meta.deleted=any or true) so that it is potentially no subset anymore of any url found in the raw resources list', function () {
+    assert.isFalse(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=MALE&limit=500&$$meta.deleted=any',
+        ['/persons?sex=FEMALE', `/persons/${someGuid}`],
+        optionsOptimisationModeHigh,
+      ),
+    );
+  });
+
 });
