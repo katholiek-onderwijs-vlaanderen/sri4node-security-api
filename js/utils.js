@@ -201,6 +201,45 @@ var reduce = function (group, index, array) {
   return !array.some(containsSubSet(group));
 };
 
+/**
+ * This function will be used for optimizing heavily how the plugin decides
+ * that a certain list url can be read.
+ * We do this wy comparing the path part of the urls, with the list of raw urls
+ * we got from security API.
+ * 
+ * There will be 3 optimization modes:
+ *  * NONE: always return false
+ *  * SAFE: only assume something is allowed when it appears literally in the list of rawPaths
+ *          (after removal of some sepcial 'operators' like limit, offset, keyOfset, ...)
+ *  * AGGRESSIVE: assumes that since almost all query parameters can only LIMIT the amount of
+ *          results, that we can safely assume that if security returns a url /persons?x=...
+ *          that /persons?x=...&y=... will be a SUBSET and thus be allowed.
+ *          In this mode it is vital that we also provide a list of exceptions
+ *          ($$meta.deleted=... is one "hardcoded" exception, but the user might add other ones).
+ *          Any query param in that exception list will be assumed to expand the resultset rather
+ *          that limit it.
+ * example:
+ * {
+ *        mode: 'AGGRESSIVE', // NONE | SAFE (default) | AGGRESSIVE
+ *        extendingQueryParams: [ '' ], // only used in AGGRESSIVE mode
+ * },
+ * 
+ * @param {*} currentPath 
+ * @param {*} rawPaths 
+ * @param {*} optimisationOptions
+ */
+function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOptions) {
+  if (optimisationOptions.mode === 'NONE') {
+    return false;
+  } else if (optimisationOptions.mode === 'NORMAL') {
+    return false;
+  } else if (optimisationOptions.mode === 'AGGRESSIVE') {
+    return false;
+  } else {
+    throw '[isPathAllowedBasedOnRawUrls] optismisationOptions.mode not known';
+  }
+}
+
 module.exports = {
 
   // removes raw groups that are subsets of other raw groups in the same set
@@ -215,5 +254,6 @@ module.exports = {
   contains,
   isPermalink,
   getResourceFromUrl,
-  parseResource
+  parseResource,
+  isPathAllowedBasedOnResourcesRaw,
 };
