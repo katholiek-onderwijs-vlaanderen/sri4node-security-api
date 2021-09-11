@@ -253,14 +253,12 @@ function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOpt
     );
   } else if (optimisationOptions.mode === 'HIGH') {
     const url = relativePathToUrlObj(currentPath);
-    const strippedUrl = stripSpecialSriQueryParamsFromParsedUrl(url);
     const queryParamsThatNotExclusivelyLimitTheResultSet = [
       ...sriQueryParamsThatNotExclusivelyLimitTheResultSet,
       ...(optimisationOptions.queryParamsThatNotExclusivelyLimitTheResultSet || []),
     ];
     return [...rawPaths].some(
-      p => pathNameIsEqualAndSearchParamsProduceSubset(strippedUrl, relativePathToUrlObj(p), queryParamsThatNotExclusivelyLimitTheResultSet)
-            || pathNameIsEqualAndSearchParamsProduceSubset(url, relativePathToUrlObj(p), queryParamsThatNotExclusivelyLimitTheResultSet)  // allow exact match incuding SpecialSriQueryParams
+      p => pathNameIsEqualAndSearchParamsProduceSubset(url, relativePathToUrlObj(p), queryParamsThatNotExclusivelyLimitTheResultSet)
     );
   } else if (optimisationOptions.mode === 'AGGRESSIVE') {
     const strippedUrl = stripSpecialSriQueryParamsFromParsedUrl(relativePathToUrlObj(currentPath));
