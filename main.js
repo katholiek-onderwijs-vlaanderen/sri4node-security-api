@@ -1,4 +1,6 @@
-const util = require('util')
+const utils = require('./js/utils');
+
+const { getPersonFromSriRequest, parseResource } = require('sri4node/js/common.js')
 
 module.exports = function (pluginConfig) {
   let security;
@@ -26,12 +28,27 @@ module.exports = function (pluginConfig) {
 
       this.init(sriConfig, db);
 
+      const listRequestOptimization = async function(tx, sriRequest) {
+        if (parseResource(sriRequest.originalUrl).query !== null) {
+            if (pluginConfig.optimisation.mode !== 'NONE') {
+                const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest));
+                sriRequest.listRequestAllowedByRawResourcesOptimization =
+                    utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl, resourcesRaw, pluginConfig.optimisation);
+            }
+        }
+      }
+
       let check = async function (tx, sriRequest, elements, ability) {
         // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
         if ( pluginConfig.defaultComponent==='/security/components/security-api' 
               &&  sriRequest.userObject && sriRequest.userObject.username==='app.security' ) {
           return;
         }
+
+        if (ability==='read' && sriRequest.listRequestAllowedByRawResourcesOptimization===true) {
+          return;
+        }
+
         await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, false)
         //console.log('CHECK DONE')
       }
@@ -58,6 +75,7 @@ module.exports = function (pluginConfig) {
 
       sriConfig.resources.forEach( resource => {
         // security functions should be FIRST function in handler lists
+        resource.beforeRead.unshift(listRequestOptimization);
         resource.afterRead.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'read'))
         resource.afterInsert.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'create'))
         resource.beforeUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))

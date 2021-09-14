@@ -147,7 +147,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             .forEach(sriRequest => {
                 if (sriRequest.keysToCheckBySecurityPlugin) {
                     const { keys, relevantRawResources, ability } = sriRequest.keysToCheckBySecurityPlugin;
-                    const resourceType = utils.parseResource(sriRequest.originalUrl).base;
+                    const resourceType = parseResource(sriRequest.originalUrl).base;
                     const keyStr = JSON.stringify({ resourceType, ability });
                     let subMap;
                     if (map[keyStr] === undefined) {
@@ -277,6 +277,22 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         }
     }
 
+
+    async function requestRawResourcesFromSecurityServer(component, operation, person) {
+        const url = '/security/query/resources/raw?component=' + component
+            + '&ability=' + operation
+            + '&person=' + person;
+        // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
+        // (needs change in security API)
+
+        const start = new Date();
+
+        const [resourcesRaw] = await doSecurityRequest([{ href: url, verb: 'GET' }]);
+        debug('sri4node-security-api | response security, securitytime=' + (new Date() - start) + ' ms.')
+        return resourcesRaw;
+    }
+
+
     async function checkPermissionOnElements(component, tx, sriRequest, elements, operation, immediately = false) {
         const resourceTypes = _.uniq(elements.map(e => utils.getResourceFromUrl(e.permalink)))
 
@@ -292,16 +308,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         if (memResourcesRawInternal !== null) {
             resourcesRaw = await memResourcesRawInternal(sriRequest, tx, component, operation, getPersonFromSriRequest(sriRequest));
         } else {
-            const url = '/security/query/resources/raw?component=' + component
-                + '&ability=' + operation
-                + '&person=' + getPersonFromSriRequest(sriRequest);
-            // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
-            // (needs change in security API)
-
-            const start = new Date();
-
-            ([resourcesRaw] = await doSecurityRequest([{ href: url, verb: 'GET' }]));
-            debug('sri4node-security-api | response security, securitytime=' + (new Date() - start) + ' ms.')
+            resourcesRaw = await requestRawResourcesFromSecurityServer(component, operation, getPersonFromSriRequest(sriRequest));
         }
 
         let relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType))
@@ -505,7 +512,8 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         setMergeRawResourcesFun,
         beforePhaseHook,
         getBaseUrl,
-        clearRawUrlCaches
+        clearRawUrlCaches,
+        requestRawResourcesFromSecurityServer
     }
 
 };
