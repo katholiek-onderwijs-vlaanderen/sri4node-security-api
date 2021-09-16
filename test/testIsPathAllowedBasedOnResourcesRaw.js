@@ -113,6 +113,14 @@ function assertsCurrentPathLiterallyInRawResources(mode, expectedReturn) {
       mode,
     ), expectedReturn
   );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/llinkid/activityplanning/activityplans/activities/?rootWithContextContains=%2Fsam%2Forganisationalunits%2Fc61d3a60-3656-4f13-b6f1-af8f744d0d4d&limit=5000&keyOffset=2020-10-01T14%3A48%3A08.648325Z%2C3b0a095d-b525-4f8a-ac55-24fcb3a2ddc9&$$meta.deleted=any',
+      ['/llinkid/activityplanning/activityplans/activities?rootWithContextContains=/sam/organisationalunits/c61d3a60-3656-4f13-b6f1-af8f744d0d4d&$$meta.deleted=any'],
+      mode,
+    ), expectedReturn
+  );
+
 }
 
 function assertsCurrentPathWithoutSpecialQueryParamsInRawResources(mode, expectedReturn) {
