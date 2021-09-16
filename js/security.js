@@ -310,17 +310,18 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         } else {
             resourcesRaw = await requestRawResourcesFromSecurityServer(component, operation, getPersonFromSriRequest(sriRequest));
         }
-
         let relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType))
 
         const superUserResource = resourceType;
         const superUserResourceInclDeleted = resourceType + '?$$meta.deleted=any';
         if (sriRequest.containsDeleted) {
             if (relevantRawResources.includes(superUserResourceInclDeleted)) {
+                debug('sri-security', 'super user access')
                 return true
             }
         } else {
             if (relevantRawResources.includes(superUserResource) || relevantRawResources.includes(superUserResourceInclDeleted)) {
+                debug('sri-security', 'super user access')
                 return true
             }
         }
