@@ -1,4 +1,5 @@
 const utils = require('./js/utils');
+const { debug, error } = require('sri4node/js/common.js')
 
 const { getPersonFromSriRequest, parseResource } = require('sri4node/js/common.js')
 
@@ -46,11 +47,11 @@ module.exports = function (pluginConfig) {
         }
 
         if (ability==='read' && sriRequest.listRequestAllowedByRawResourcesOptimization===true) {
+          debug('sri-security', 'Used security optimization for listResources.');
           return;
         }
 
         await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, false)
-        //console.log('CHECK DONE')
       }
 
       const checkForSecurityBypass = async () => {
@@ -97,7 +98,7 @@ module.exports = function (pluginConfig) {
         component = pluginConfig.defaultComponent
       }
       if (resourceList.length === 0) {
-        console.log('Warning: checkPermissionOnResourceList with empty resourceList makes no sense!')
+        error('Warning: checkPermissionOnResourceList with empty resourceList makes no sense!')
         security.handleNotAllowed(sriRequest)
       }
       return security.checkPermissionOnElements(component, tx, sriRequest,
