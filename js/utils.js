@@ -1,3 +1,44 @@
+// Some old functions, unfortunately still in use; they need to be replaced by similar calls to sri4node common
+function getResourceFromUrl(url) {
+  'use strict';
+
+  const groups = url.match(/^(\/[a-z\/]*[[a-z]+)((\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})|\?|$|\/$)(.*)?$/)
+  if (groups != null && groups.length > 0) {
+    return groups[1]
+  } else {
+    return null
+  }
+};
+
+
+var isPermalink = function (href) {
+  'use strict';
+  return (href.match(/^\/[a-z\/]*\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(\?.*)?$/) !== null)
+};
+
+var getPartFromPermalink = function (permalink, part) {
+  'use strict';
+  var groups;
+
+  if (isPermalink(permalink)) {
+    groups = permalink.match(/^(\/[a-z\/]*)\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(\?.*)?$/);
+    if (part === 'resource') {
+      return groups[1];
+    } else if (part === 'key') {
+      return groups[2];
+    }
+  }
+
+  return null;
+};
+
+function getKeyFromPermalink(permalink) {
+  'use strict';
+  return getPartFromPermalink(permalink, 'key');
+};
+// <- end old functions that need to be replaced by similar calls to sri4node common
+
+
 /**
  * Returns a new URL with a modifed searchParams object.
  * All the keys that appear in the queryParamsToStrip set will be removed.
@@ -77,7 +118,7 @@ function stripSpecialSriQueryParamsFromParsedUrl(parsedUrl) {
  * @param {String} queryParamsString 
  * @returns {String}
  */
- function sortSearchParamString(queryParamsString) {
+function sortSearchParamString(queryParamsString) {
   const queryParamsSorted = new URLSearchParams(queryParamsString);
   queryParamsSorted.sort();
   return queryParamsSorted.toString();
@@ -204,6 +245,8 @@ function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOpt
 }
 
 module.exports = {
+  getResourceFromUrl,
+  getKeyFromPermalink,
   stripQueryParamsFromParsedUrl,
-  isPathAllowedBasedOnResourcesRaw,
+  isPathAllowedBasedOnResourcesRaw
 };
