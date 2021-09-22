@@ -3,6 +3,28 @@ const { debug, error } = require('sri4node/js/common.js')
 
 const { getPersonFromSriRequest, parseResource } = require('sri4node/js/common.js')
 
+/**
+ * @typedef {import("./js/utils").QueryParam} QueryParam
+ *
+ * @typedef {import("./js/utils").MultiValuedPropertyConfig} MultiValuedPropertyConfig
+ *
+ * @typedef {import("./js/utils").OptimisationOptions} OptimisationOptions
+ *
+ * @callback InitOauthValveFn
+ *  @param {object} sriConfig
+ *  @returns {object}
+ *
+ * @typedef {object} PluginConfig
+ *  @property {String} defaultComponent
+ *  @property {InitOauthValveFn} initOauthValve
+ *  @property {'CacheRawListResults' | 'CacheRawResults' } securityDbCheckMethod
+ *  @property {OptimisationOptions} optimisation
+ */
+
+/**
+ * @param {PluginConfig} pluginConfig
+ * @returns an object with some methods as used by sri4node's plugin mechanism
+ */
 module.exports = function (pluginConfig) {
   let security;
   let pglistener;

@@ -20,7 +20,8 @@ const optionsOptimisationModeAggressive = {
   mode: 'AGGRESSIVE',
   queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
   multiValuedPropertyConfig: [
-    { name: 'roots',
+    {
+      name: 'roots',
       aliases: [ 'rootIn' ],
       correspondingSingleValuedProperty: {
         name: 'root',
@@ -28,8 +29,11 @@ const optionsOptimisationModeAggressive = {
       },
       moreCommaSeparatedValuesProduceASmallerSubset: false,
     },
-    { name: 'sex',
-      aliases: [ 'sexIn' ],
+    {
+      name: 'sexIn',
+      correspondingSingleValuedProperty: {
+        name: 'sex',
+      },
       moreCommaSeparatedValuesProduceASmallerSubset: false,
     },
   ]
@@ -251,48 +255,48 @@ function assertsCurrentPathWithoutSpecialQueryParamsSubsetOfRawResources(mode, e
 
 
 function assertsCurrentPathWithoutSpecialQueryParamsNoSubsetOfRawResources(mode, expectedReturn) {
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sex=MALE&limit=500&offset=3',
-            ['/persons?sex=FEMALE', `/persons/${someGuid}`],
-            mode
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sex=MALE&limit=500',
-            ['/persons?sex=FEMALE', `/persons/${someGuid}`],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sex=MALE&limit=500',
-            ['/persons?sex=MALE&title=Mijnheer', `/persons/${someGuid}`],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sex=MALE',
-            ['/persons?title=Mijnheer', `/persons/${someGuid}`],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/sam/organisationalunits/externalidentifiers?limit=5000&keyOffset=2018-09-18T18%3A36%3A17.623499Z,37472e60-15f8-4c48-bf4f-1d47e41dd164',
-            ['/sam/organisationalunits/externalidentifiers?type=INSTITUTIONNUMBER', '/persons?sex=MALE', `/persons/${someGuid}`],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sex=MALE&limit=500&offset=3',
-            ['/persons?sex=FEMALE', `/persons/${someGuid}`],
-            mode
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=MALE&limit=500&offset=3',
+      ['/persons?sex=FEMALE', `/persons/${someGuid}`],
+      mode
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=MALE&limit=500',
+      ['/persons?sex=FEMALE', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=MALE&limit=500',
+      ['/persons?sex=MALE&title=Mijnheer', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=MALE',
+      ['/persons?title=Mijnheer', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/sam/organisationalunits/externalidentifiers?limit=5000&keyOffset=2018-09-18T18%3A36%3A17.623499Z,37472e60-15f8-4c48-bf4f-1d47e41dd164',
+      ['/sam/organisationalunits/externalidentifiers?type=INSTITUTIONNUMBER', '/persons?sex=MALE', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=MALE&limit=500&offset=3',
+      ['/persons?sex=FEMALE', `/persons/${someGuid}`],
+      mode
+    ), expectedReturn
+  );
 }
 
 function assertsCurrentPathPotentiallyExtendsRawResources(mode, expectedReturn) {
@@ -338,545 +342,545 @@ function assertsCurrentPathPotentiallyExtendsRawResources(mode, expectedReturn) 
 
 
 function assertsCurrentPathMatchesRawResourcesWithIn(mode, expectedReturn) {
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=FEMALE',
+      ['/persons?sexIn=FEMALE', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=FEMALE',
+      ['/persons?sexIn=MALE,FEMALE', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=FEMALE',
+      ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sexIn=FEMALE',
+      ['/persons?sexIn=MALE,FEMALE', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sexIn=FEMALE',
+      ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sexIn=FEMALE,MALE',
+      ['/persons?sexIn=MALE,FEMALE', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sexIn=FEMALE,INTERSEX',
+      ['/persons?sexIn=FEMALE,MALE,INTERSEX', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+}
+
+function assertsCurrentPathNotMatchesRawResourcesWithIn(mode, expectedReturn) {
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=FEMALE',
+      ['/persons?sexIn=', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=FEMALE',
+      ['/persons?sexIn=MALE,INTERSEX', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=',
+      ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sexIn=FEMALE',
+      ['/persons?sexIn=', `/persons/${someGuid}`],
+      mode,
+    ), expectedReturn
+  );
     assert.equal(
       isPathAllowedBasedOnResourcesRaw(
-        '/persons?sex=FEMALE',
-        ['/persons?sexIn=FEMALE', `/persons/${someGuid}`],
+        '/persons?sexIn=FEMALE,MALE',
+        ['/persons?sexIn=MALE,INTERSEX', `/persons/${someGuid}`],
         mode,
       ), expectedReturn
     );
     assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?sex=FEMALE',
-          ['/persons?sexIn=MALE,FEMALE', `/persons/${someGuid}`],
-          mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?sex=FEMALE',
-          ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
-          mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sexIn=FEMALE',
-            ['/persons?sexIn=MALE,FEMALE', `/persons/${someGuid}`],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sexIn=FEMALE',
-            ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sexIn=FEMALE,MALE',
-            ['/persons?sexIn=MALE,FEMALE', `/persons/${someGuid}`],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sexIn=FEMALE,INTERSEX',
-            ['/persons?sexIn=FEMALE,MALE,INTERSEX', `/persons/${someGuid}`],
-            mode,
-        ), expectedReturn
-    );
-  }
-
-  function assertsCurrentPathNotMatchesRawResourcesWithIn(mode, expectedReturn) {
-    assert.equal(
       isPathAllowedBasedOnResourcesRaw(
-        '/persons?sex=FEMALE',
-        ['/persons?sexIn=', `/persons/${someGuid}`],
+        '/persons?sexIn=FEMALE,MALE,INTERSEX',
+        ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
         mode,
       ), expectedReturn
     );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?sex=FEMALE',
-          ['/persons?sexIn=MALE,INTERSEX', `/persons/${someGuid}`],
-          mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?sex=',
-          ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
-          mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?sexIn=FEMALE',
-            ['/persons?sexIn=', `/persons/${someGuid}`],
-            mode,
-        ), expectedReturn
-    );
-      assert.equal(
-          isPathAllowedBasedOnResourcesRaw(
-              '/persons?sexIn=FEMALE,MALE',
-              ['/persons?sexIn=MALE,INTERSEX', `/persons/${someGuid}`],
-              mode,
-          ), expectedReturn
-      );
-      assert.equal(
-          isPathAllowedBasedOnResourcesRaw(
-              '/persons?sexIn=FEMALE,MALE,INTERSEX',
-              ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
-              mode,
-          ), expectedReturn
-      );
-  }
+}
 
-  function assertsCurrentPathMatchesHrefsWithSingletonInRawResources(mode, expectedReturn) {
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?hrefs=/persons/123',
-          ['/persons/123'],
-          mode,
-        ), expectedReturn
-      );
-      assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?hrefs=/persons/123,/persons/456',
-          ['/persons/123', '/persons/456'],
-          mode,
-        ), expectedReturn
-      );
-      assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?hrefs=/persons/123,/persons/456',
-          ['/persons/456', '/persons/123'],
-          mode,
-        ), expectedReturn
-      );
-  }
+function assertsCurrentPathMatchesHrefsWithSingletonInRawResources(mode, expectedReturn) {
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?hrefs=/persons/123',
+      ['/persons/123'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?hrefs=/persons/123,/persons/456',
+      ['/persons/123', '/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?hrefs=/persons/123,/persons/456',
+      ['/persons/456', '/persons/123'],
+      mode,
+    ), expectedReturn
+  );
+}
 
-  function assertsCurrentPathNotMatchingHrefsWithSingletonInRawResources(mode, expectedReturn) {
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?hrefs=/persons/123',
-          ['/persons/128'],
-          mode,
-        ), expectedReturn
-      );
-      assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?hrefs=/persons/123,/persons/456',
-          ['/persons/128', '/persons/456'],
-          mode,
-        ), expectedReturn
-      );
-      assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?hrefs=/persons/123,/persons/456',
-          ['/persons/456', '/persons/128'],
-          mode,
-        ), expectedReturn
-      );
-      assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?hrefs=/persons/123,/persons/456',
-          ['/persons/456'],
-          mode,
-        ), expectedReturn
-      );
-  }
+function assertsCurrentPathNotMatchingHrefsWithSingletonInRawResources(mode, expectedReturn) {
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?hrefs=/persons/123',
+      ['/persons/128'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?hrefs=/persons/123,/persons/456',
+      ['/persons/128', '/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?hrefs=/persons/123,/persons/456',
+      ['/persons/456', '/persons/128'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?hrefs=/persons/123,/persons/456',
+      ['/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+}
 
-  function assertsCurrentPathMatchesRawResourcesHref(mode, expectedReturn) {
-    assert.equal(
-      isPathAllowedBasedOnResourcesRaw(
-        '/persons?hrefs=/persons/123',
-        ['/persons?hrefs=/persons/123,/persons/456'],
-        mode,
-      ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-          '/persons?hrefs=/persons/123',
-          ['/persons?hrefs=/persons/456,/persons/123'],
-          mode,
-        ), expectedReturn
-      );
-  }
+function assertsCurrentPathMatchesRawResourcesHref(mode, expectedReturn) {
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?hrefs=/persons/123',
+      ['/persons?hrefs=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?hrefs=/persons/123',
+      ['/persons?hrefs=/persons/456,/persons/123'],
+      mode,
+    ), expectedReturn
+  );
+}
 
 
-  function assertsCurrentPathNotMatchingRawResourcesMultivalue(mode, expectedReturn) {
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?roots=/persons/456,/persons/123,/persons/789',
-            ['/persons?roots=/persons/123,/persons/456'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?rootIn=/persons/456,/persons/123,/persons/789',
-            ['/persons?roots=/persons/123,/persons/456'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?roots=/persons/456,/persons/123,/persons/789',
-            ['/persons?rootIn=/persons/123,/persons/456'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?rootIn=/persons/456,/persons/123,/persons/789',
-            ['/persons?rootIn=/persons/123,/persons/456'],
-            mode,
-        ), expectedReturn
-    );
-  }
+function assertsCurrentPathNotMatchingRawResourcesMultivalue(mode, expectedReturn) {
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?roots=/persons/456,/persons/123,/persons/789',
+      ['/persons?roots=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?rootIn=/persons/456,/persons/123,/persons/789',
+      ['/persons?roots=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?roots=/persons/456,/persons/123,/persons/789',
+      ['/persons?rootIn=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?rootIn=/persons/456,/persons/123,/persons/789',
+      ['/persons?rootIn=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+}
 
-  function assertsCurrentPathMatchesRawResourcesMultiValue(mode, expectedReturn) {
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?root=/persons/123',
-            ['/persons?roots=/persons/123,/persons/456'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?root=/persons/123',
-            ['/persons?roots=/persons/456,/persons/123'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?root=/persons/123',
-            ['/persons?roots=/persons/123'],
-            mode,
-        ), expectedReturn
-    );
+function assertsCurrentPathMatchesRawResourcesMultiValue(mode, expectedReturn) {
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?root=/persons/123',
+      ['/persons?roots=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?root=/persons/123',
+      ['/persons?roots=/persons/456,/persons/123'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?root=/persons/123',
+      ['/persons?roots=/persons/123'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?root=/persons/123',
-            ['/persons?rootIn=/persons/123,/persons/456'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?root=/persons/123',
-            ['/persons?rootIn=/persons/456,/persons/123'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?root=/persons/123',
-            ['/persons?rootIn=/persons/123'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?root=/persons/123',
+      ['/persons?rootIn=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?root=/persons/123',
+      ['/persons?rootIn=/persons/456,/persons/123'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?root=/persons/123',
+      ['/persons?rootIn=/persons/123'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?wortel=/persons/123',
-            ['/persons?roots=/persons/123,/persons/456'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?wortel=/persons/123',
-            ['/persons?roots=/persons/456,/persons/123'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?wortel=/persons/123',
-            ['/persons?roots=/persons/123'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?wortel=/persons/123',
+      ['/persons?roots=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?wortel=/persons/123',
+      ['/persons?roots=/persons/456,/persons/123'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?wortel=/persons/123',
+      ['/persons?roots=/persons/123'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?wortel=/persons/123',
-            ['/persons?rootIn=/persons/123,/persons/456'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?wortel=/persons/123',
-            ['/persons?rootIn=/persons/456,/persons/123'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?wortel=/persons/123',
-            ['/persons?rootIn=/persons/123'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?wortel=/persons/123',
+      ['/persons?rootIn=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?wortel=/persons/123',
+      ['/persons?rootIn=/persons/456,/persons/123'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?wortel=/persons/123',
+      ['/persons?rootIn=/persons/123'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?roots=/persons/456,/persons/123',
-            ['/persons?roots=/persons/123,/persons/456'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/persons?roots=/persons/456,/persons/123',
-            ['/persons?roots=/persons/123,/persons/456,/persons/789'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?roots=/persons/456,/persons/123',
+      ['/persons?roots=/persons/123,/persons/456'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?roots=/persons/456,/persons/123',
+      ['/persons?roots=/persons/123,/persons/456,/persons/789'],
+      mode,
+    ), expectedReturn
+  );
 }
 
 function assertsCurrentPathNotMatchingRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(mode, expectedReturn) {
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A',
-            ['/content?tags=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=C',
-            ['/content?tags=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,C',
-            ['/content?tags=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,C',
-            ['/content?tags=B'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A',
-            ['/content?tags=B'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A',
+      ['/content?tags=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=C',
+      ['/content?tags=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,C',
+      ['/content?tags=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,C',
+      ['/content?tags=B'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A',
+      ['/content?tags=B'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A',
-            ['/content?tagContains=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=C',
-            ['/content?tagContains=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,C',
-            ['/content?tagContains=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,C',
-            ['/content?tagContains=B'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A',
-            ['/content?tagContains=B'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A',
+      ['/content?tagContains=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=C',
+      ['/content?tagContains=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,C',
+      ['/content?tagContains=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,C',
+      ['/content?tagContains=B'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A',
+      ['/content?tagContains=B'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A',
-            ['/content?tags=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=C',
-            ['/content?tags=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,C',
-            ['/content?tags=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,C',
-            ['/content?tags=B'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A',
-            ['/content?tags=B'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A',
+      ['/content?tags=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=C',
+      ['/content?tags=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,C',
+      ['/content?tags=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,C',
+      ['/content?tags=B'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A',
+      ['/content?tags=B'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A',
-            ['/content?tagContains=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=C',
-            ['/content?tagContains=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,C',
-            ['/content?tagContains=A,B,C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,C',
-            ['/content?tagContains=B'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A',
-            ['/content?tagContains=B'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A',
+      ['/content?tagContains=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=C',
+      ['/content?tagContains=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,C',
+      ['/content?tagContains=A,B,C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,C',
+      ['/content?tagContains=B'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A',
+      ['/content?tagContains=B'],
+      mode,
+    ), expectedReturn
+  );
 }
 
 function assertsCurrentPathMatchesRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(mode, expectedReturn) {
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,B,C',
-            ['/content?tags=A'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,B,C',
-            ['/content?tags=C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,B,C',
-            ['/content?tags=B,C'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,B,C',
+      ['/content?tags=A'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,B,C',
+      ['/content?tags=C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,B,C',
+      ['/content?tags=B,C'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,B,C',
-            ['/content?tags=A'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,B,C',
-            ['/content?tags=C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,B,C',
-            ['/content?tags=B,C'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,B,C',
+      ['/content?tags=A'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,B,C',
+      ['/content?tags=C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,B,C',
+      ['/content?tags=B,C'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,B,C',
-            ['/content?tagContains=A'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,B,C',
-            ['/content?tagContains=C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tags=A,B,C',
-            ['/content?tagContains=B,C'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,B,C',
+      ['/content?tagContains=A'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,B,C',
+      ['/content?tagContains=C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tags=A,B,C',
+      ['/content?tagContains=B,C'],
+      mode,
+    ), expectedReturn
+  );
 
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,B,C',
-            ['/content?tagContains=A'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,B,C',
-            ['/content?tagContains=C'],
-            mode,
-        ), expectedReturn
-    );
-    assert.equal(
-        isPathAllowedBasedOnResourcesRaw(
-            '/content?tagContains=A,B,C',
-            ['/content?tagContains=B,C'],
-            mode,
-        ), expectedReturn
-    );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,B,C',
+      ['/content?tagContains=A'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,B,C',
+      ['/content?tagContains=C'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/content?tagContains=A,B,C',
+      ['/content?tagContains=B,C'],
+      mode,
+    ), expectedReturn
+  );
 }
 
 
@@ -1113,7 +1117,7 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is NORMAL
     assertsCurrentPathMatchesRawResourcesWithIn(optionsOptimisationModeNormal, false);
   });
 
-  it('should return false if currentPath (without special query params) contains a query param that not matches as subset of an "In"-parameter in the raw resources list', function () {
+  it('should return false if currentPath (without special query params) contains a query param that does not match as subset of an "In"-parameter in the raw resources list', function () {
     assertsCurrentPathNotMatchesRawResourcesWithIn(optionsOptimisationModeNormal, false);
   });
 });
@@ -1156,63 +1160,63 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is HIGH',
 });
 
 describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is AGGRESSIVE', function () {
-    'use strict';
+  'use strict';
 
-    it('should always return false with empty raw resources set', function () {
-      assertWithEmptyRawResources(optionsOptimisationModeAggressive);
-    });
+  it('should always return false with empty raw resources set', function () {
+    assertWithEmptyRawResources(optionsOptimisationModeAggressive);
+  });
 
-    it('should return true if the currentPath is literally to be found in the raw resources list', function () {
-      assertsCurrentPathLiterallyInRawResources(optionsOptimisationModeAggressive, true);
-    });
+  it('should return true if the currentPath is literally to be found in the raw resources list', function () {
+    assertsCurrentPathLiterallyInRawResources(optionsOptimisationModeAggressive, true);
+  });
 
-    it('should return true if the currentPath without special query params is found in the raw resources list', function () {
-      assertsCurrentPathWithoutSpecialQueryParamsInRawResources(optionsOptimisationModeAggressive, true);
-    });
+  it('should return true if the currentPath without special query params is found in the raw resources list', function () {
+    assertsCurrentPathWithoutSpecialQueryParamsInRawResources(optionsOptimisationModeAggressive, true);
+  });
 
-    it('should return true if the currentPath (without special query params) is found to be a subset of one found in the raw resources list', function () {
-      assertsCurrentPathWithoutSpecialQueryParamsSubsetOfRawResources(optionsOptimisationModeAggressive, true);
-    });
+  it('should return true if the currentPath (without special query params) is found to be a subset of one found in the raw resources list', function () {
+    assertsCurrentPathWithoutSpecialQueryParamsSubsetOfRawResources(optionsOptimisationModeAggressive, true);
+  });
 
-    it('should return false if the currentPath (without special query params) is no subset of any url found in the raw resources list', function () {
-      assertsCurrentPathWithoutSpecialQueryParamsNoSubsetOfRawResources(optionsOptimisationModeAggressive, false);
-    });
+  it('should return false if the currentPath (without special query params) is no subset of any url found in the raw resources list', function () {
+    assertsCurrentPathWithoutSpecialQueryParamsNoSubsetOfRawResources(optionsOptimisationModeAggressive, false);
+  });
 
-    it('should return false if currentPath (without special query params) contains a query param that expands or totally modifies the resultset (like $$meta.deleted=any or true) so that it is potentially no subset anymore of any url found in the raw resources list', function () {
-      assertsCurrentPathPotentiallyExtendsRawResources(optionsOptimisationModeAggressive, false);
-    });
+  it('should return false if currentPath (without special query params) contains a query param that expands or totally modifies the resultset (like $$meta.deleted=any or true) so that it is potentially no subset anymore of any url found in the raw resources list', function () {
+    assertsCurrentPathPotentiallyExtendsRawResources(optionsOptimisationModeAggressive, false);
+  });
 
-    it('should return true if currentPath (without special query params) contains a query param that matches as subset of an "In"-parameter in the raw resources list', function () {
-        assertsCurrentPathMatchesRawResourcesWithIn(optionsOptimisationModeAggressive, true);
-    });
+  it('should return true if currentPath (without special query params) contains a query param that matches as subset of an "In"-parameter in the raw resources list', function () {
+    assertsCurrentPathMatchesRawResourcesWithIn(optionsOptimisationModeAggressive, true);
+  });
 
-    it('should return false if currentPath (without special query params) contains a query param that not matches as subset of an "In"-parameter in the raw resources list', function () {
-        assertsCurrentPathNotMatchesRawResourcesWithIn(optionsOptimisationModeAggressive, false);
-    });
+  it('should return false if currentPath (without special query params) contains a query param that not matches as subset of an "In"-parameter in the raw resources list', function () {
+    assertsCurrentPathNotMatchesRawResourcesWithIn(optionsOptimisationModeAggressive, false);
+  });
 
-    it('should return true if currentPath (without special query params) hrefs parameter matches with single resource(s) in resources raw', function () {
-        assertsCurrentPathMatchesHrefsWithSingletonInRawResources(optionsOptimisationModeAggressive, true);
-    });
+  it('should return true if currentPath (without special query params) hrefs parameter matches with single resource(s) in resources raw', function () {
+    assertsCurrentPathMatchesHrefsWithSingletonInRawResources(optionsOptimisationModeAggressive, true);
+  });
 
-    it('should return false if currentPath (without special query params) hrefs parameter does not match with single resource(s) in resources raw', function () {
-        assertsCurrentPathNotMatchingHrefsWithSingletonInRawResources(optionsOptimisationModeAggressive, false);
-    });
-    it('should return true if currentPath (without special query params) hrefs parameter is a subset of hrefs parameter in resources raw', function () {
-        assertsCurrentPathMatchesRawResourcesHref(optionsOptimisationModeAggressive, true);
-    });
-    it('should return false if currentPath (without special query params) multivalue parameter is not a subset of hrefs parameter in resources raw', function () {
-        assertsCurrentPathNotMatchingRawResourcesMultivalue(optionsOptimisationModeAggressive, false);
-    });
-    it('should return true if currentPath (without special query params) multivalue parameter is subset of multivalue parameter in resources raw', function () {
-        assertsCurrentPathMatchesRawResourcesMultiValue(optionsOptimisationModeAggressive, true);
-    });
+  it('should return false if currentPath (without special query params) hrefs parameter does not match with single resource(s) in resources raw', function () {
+    assertsCurrentPathNotMatchingHrefsWithSingletonInRawResources(optionsOptimisationModeAggressive, false);
+  });
+  it('should return true if currentPath (without special query params) hrefs parameter is a subset of hrefs parameter in resources raw', function () {
+    assertsCurrentPathMatchesRawResourcesHref(optionsOptimisationModeAggressive, true);
+  });
+  it('should return false if currentPath (without special query params) multivalue parameter is not a subset of hrefs parameter in resources raw', function () {
+      assertsCurrentPathNotMatchingRawResourcesMultivalue(optionsOptimisationModeAggressive, false);
+  });
+  it('should return true if currentPath (without special query params) multivalue parameter is subset of multivalue parameter in resources raw', function () {
+    assertsCurrentPathMatchesRawResourcesMultiValue(optionsOptimisationModeAggressive, true);
+  });
 
-    it('should return false if currentPath (without special query params) multivalue parameter is not a subset of hrefs parameter in resources raw (with OptionMoreCommaSeparatedValuesProduceASmallerSubset true)', function () {
-        assertsCurrentPathNotMatchingRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset, false);
-    });
-    it('should return true if currentPath (without special query params) multivalue parameter is a subset of hrefs parameter in resources raw (with OptionMoreCommaSeparatedValuesProduceASmallerSubset true)', function () {
-        assertsCurrentPathMatchesRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset, true)
-    });
+  it('should return false if currentPath (without special query params) multivalue parameter is not a subset of hrefs parameter in resources raw (with OptionMoreCommaSeparatedValuesProduceASmallerSubset true)', function () {
+    assertsCurrentPathNotMatchingRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset, false);
+  });
+  it('should return true if currentPath (without special query params) multivalue parameter is a subset of hrefs parameter in resources raw (with OptionMoreCommaSeparatedValuesProduceASmallerSubset true)', function () {
+    assertsCurrentPathMatchesRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset, true)
+  });
 
 });
 

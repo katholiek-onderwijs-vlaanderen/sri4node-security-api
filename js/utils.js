@@ -59,13 +59,15 @@ function stripQueryParamsFromParsedUrl(parsedUrl, queryParamsToStrip = new Set()
 /**
  * @typedef {'NONE' | 'NORMAL' | 'HIGH' | 'AGGRESSIVE'} OptimisationMode
  *
- * @typeDef {object} MultiValuedPropertyConfig
+ * @typedef {object} QueryParam
  *  @property {String} name
- *  @property {String} aliases
+ *  @property {String[]} aliases
+ *
+ * @typedef {object} MultiValuedPropertyConfig
+ *  @property {String} name
+ *  @property {String[]} aliases
  *  @property {Boolean} moreCommaSeparatedValuesProduceASmallerSubset
- *  @property {object} correspondingSingleValuedProperty
- *    @property {String} name
- *    @property {String} aliases
+ *  @property {QueryParam} correspondingSingleValuedProperty
  * 
  *
  * @typedef {object} OptimisationOptions
@@ -193,11 +195,13 @@ function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, optimisat
     const replaceAliases = (urlSearchParams) => {
         for (const [key, value] of urlSearchParams) {
             const multiValueConfig = optimisationOptions.multiValuedPropertyConfig.find(obj =>
-                    obj.aliases.includes(key) ||
-                    (obj.correspondingSingleValuedProperty!==undefined &&
-                        (obj.correspondingSingleValuedProperty.name===key ||
-                            obj.correspondingSingleValuedProperty.aliases.includes(key)
-                            )
+                    (obj.aliases && obj.aliases.includes(key)) ||
+                    (
+                      obj.correspondingSingleValuedProperty !== undefined &&
+                      (
+                        obj.correspondingSingleValuedProperty.name===key ||
+                        (obj.correspondingSingleValuedProperty.aliases && obj.correspondingSingleValuedProperty.aliases.includes(key))
+                      )
                     )
             );
             if (multiValueConfig !== undefined) {
