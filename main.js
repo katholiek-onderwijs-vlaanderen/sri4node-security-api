@@ -12,9 +12,11 @@ module.exports = function (pluginConfig) {
 
       security = require('./js/security')(pluginConfig, sriConfig);
       if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
-            pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {      
+            pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
         pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches);
       }
+
+      utils.addSriDefaultsToOptimisationOptions(pluginConfig.optimisation);
     },
 
     setMemResourcesRawInternal: (func) => {

@@ -102,13 +102,43 @@ const specialSriQueryParams = new Set([
   'modifiedSince',
 ])
 
-/**
- * Hardcoded list of query params that are known to potentially not purely
- * limit the result set when added to a url
- */
-const sriQueryParamsThatNotExclusivelyLimitTheResultSet = new Set([
-  '$$meta.deleted',
-])
+
+
+const addSriDefaultsToOptimisationOptions = (optimisationOptions) => {
+    /**
+     * Hardcoded list of query params that are known to potentially not purely
+     * limit the result set when added to a url
+     */
+    const sriQueryParamsThatNotExclusivelyLimitTheResultSet = new Set([
+        '$$meta.deleted',
+    ])
+    const addSriQueryParamsThatNotExclusivelyLimitTheResultSet = (optimisationOptions) => {
+        optimisationOptions.queryParamsThatNotExclusivelyLimitTheResultSet = [
+            ...sriQueryParamsThatNotExclusivelyLimitTheResultSet,
+            ...(optimisationOptions.queryParamsThatNotExclusivelyLimitTheResultSet || []),
+        ];
+    }
+
+    const sriMultiValuedPropertyConfig = [
+        {
+            name: 'hrefs',
+            aliases: 'hrefIn',
+            moreCommaSeparatedValuesProduceASmallerSubset: false,
+        }
+    ];
+    const addSriMultiValuedPropertyConfig = (optimisationOptions) => {
+        optimisationOptions.multiValuedPropertyConfig = optimisationOptions.multiValuedPropertyConfig !== undefined
+            ? optimisationOptions.multiValuedPropertyConfig.concat(sriMultiValuedPropertyConfig)
+            : sriMultiValuedPropertyConfig;
+    }
+
+    if (optimisationOptions.mode === 'HIGH') {
+        addSriQueryParamsThatNotExclusivelyLimitTheResultSet(optimisationOptions);
+    } else if (optimisationOptions.mode === 'AGGRESSIVE') {
+        addSriQueryParamsThatNotExclusivelyLimitTheResultSet(optimisationOptions);
+        addSriMultiValuedPropertyConfig(optimisationOptions);
+    }
+}
 
 
 /**
@@ -154,23 +184,72 @@ function pathNameAndSearchParamsAreEqual(parsedUrl1, parsedUrl2) {
  * 
  * @param {URLSearchParams} parsedUrl1 
  * @param {URLSearchParams} parsedUrl2 
- * @param {Array<String>} queryParamsThatNotExclusivelyLimitTheResultSet 
+ * @param {OptimisationOptions} optimisationOptions 
  */
-function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryParamsThatNotExclusivelyLimitTheResultSet) {
+function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, optimisationOptions) {
+
+  // replace aliases with their regular name
+  if (optimisationOptions.mode === 'AGGRESSIVE') {
+    const replaceAliases = (urlSearchParams) => {
+        for (const [key, value] of urlSearchParams) {
+            const multiValueConfig = optimisationOptions.multiValuedPropertyConfig.find(obj =>
+                    obj.aliases.includes(key) ||
+                    (obj.correspondingSingleValuedProperty!==undefined &&
+                        (obj.correspondingSingleValuedProperty.name===key ||
+                            obj.correspondingSingleValuedProperty.aliases.includes(key)
+                            )
+                    )
+            );
+            if (multiValueConfig !== undefined) {
+                urlSearchParams.set(multiValueConfig.name, value);
+                urlSearchParams.delete(key);
+            };
+        }
+    };
+    replaceAliases(urlSearchParams1);
+    replaceAliases(urlSearchParams2);
+  }
 
   const leftEntries = [...urlSearchParams1.entries()];
   const rightEntries = [...urlSearchParams2.entries()];
 
   // left is superset of right: left should contain everything in the right query params + maybe more 
   const leftParamsHasAllTheRightParamsAndMaybeMore = rightEntries
-    .every(([key, value]) => urlSearchParams1.has(key) && urlSearchParams1.get(key) === value);
+    .every(([key, value]) => {
+        if (optimisationOptions.mode === 'AGGRESSIVE') {
+            const multiValueConfig = optimisationOptions.multiValuedPropertyConfig.find(obj => obj.name === key);
+            if (multiValueConfig !== undefined) {
+                const leftValue = urlSearchParams1.get(key);
+                if (leftValue && value) {
+                    const leftValueList = leftValue.split(',');
+                    const rightValueList = value.split(',');
+                    if (multiValueConfig.moreCommaSeparatedValuesProduceASmallerSubset===false) {
+                        // 'OR' logic: scenario where more multivalue arguments extend the resultset
+                        // example: persons?hrefIn=/persons/123 is a subset of persons?hrefIn=/persons/123,/persons/456
+                        return leftValueList.every(val => rightValueList.includes(val));
+                    } else {
+                        // 'AND' logic: scenario where more multivalue arguments narrow the resultset
+                        // example: content?tags=A,B,C is subset of content?tags=A,B
+                        return rightValueList.every(val => leftValueList.includes(val));
+                    }
+                }
+                return false;
+            } else {
+                return (urlSearchParams1.has(key) && urlSearchParams1.get(key) === value);
+            }
+        } else {
+            return (urlSearchParams1.has(key) && urlSearchParams1.get(key) === value);
+        }
+     });
+
   if (! leftParamsHasAllTheRightParamsAndMaybeMore) {
     return false;
   } else {
     // it might produce a subset, but in order to be sure, we need to know that none of the remaining
     // params are params that might extend or shift the result (instead of purely limiting it)
+    //const onlyLeftEntries = leftEntries.filter(([key, value]) => !urlSearchParams2.has(key) || urlSearchParams2.get(key) !== value);
     const onlyLeftEntries = leftEntries.filter(([key, value]) => !urlSearchParams2.has(key) || urlSearchParams2.get(key) !== value);
-    const someOnlyLeftEntriesCouldExtendOrShiftTheResultset = onlyLeftEntries.some(([key, value]) => queryParamsThatNotExclusivelyLimitTheResultSet.includes(key));
+    const someOnlyLeftEntriesCouldExtendOrShiftTheResultset = onlyLeftEntries.some(([key, value]) => optimisationOptions.queryParamsThatNotExclusivelyLimitTheResultSet.includes(key));
     return !someOnlyLeftEntriesCouldExtendOrShiftTheResultset;
   }
 }
@@ -186,11 +265,12 @@ function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPara
  * 
  * @param {URL} strippedUrl 
  * @param {URL} relativePathToUrlObj 
+ * @param {OptimisationOptions} optimisationOptions
  * @returns {Boolean}
  */
-function pathNameIsEqualAndSearchParamsProduceSubset(parsedUrl1, parsedUrl2, queryParamsThatNotExclusivelyLimitTheResultSet) {
+function pathNameIsEqualAndSearchParamsProduceSubset(parsedUrl1, parsedUrl2, optimisationOptions) {
   return parsedUrl1.pathname === parsedUrl2.pathname &&
-    searchParamsProduceSubset(parsedUrl1.searchParams, parsedUrl2.searchParams, queryParamsThatNotExclusivelyLimitTheResultSet);
+    searchParamsProduceSubset(parsedUrl1.searchParams, parsedUrl2.searchParams, optimisationOptions);
 }
 
 /**
@@ -225,13 +305,14 @@ function pathNameIsEqualAndSearchParamsProduceSubset(parsedUrl1, parsedUrl2, que
  *    mode: 'AGGRESSIVE', // NONE | SAFE (default) | AGGRESSIVE
  *    queryParamsThatNotExclusivelyLimitTheResultSet: [ '' ], // only used in HIGH and AGGRESSIVE mode
  *    multiValuedPropertyConfig: [
- *      name: 'roots',      // MANDATORY
- *      aliasses: 'rootIn'  // OPTIONAL
- *      correspondingSingleValuedProperty: { // OPTIONAL
- *        name: 'root',
- *        aliases: 'wortel',
+ *      { name: 'roots',      // MANDATORY
+ *        aliasses: 'rootIn',  // OPTIONAL
+ *        correspondingSingleValuedProperty: { // OPTIONAL
+ *          name: 'root',
+ *          aliases: 'wortel',
+ *        }
+ *        moreCommaSeparatedValuesProduceASmallerSubset: false, // MANDATORY crash with a clear error message when it's missing
  *      }
- *      moreCommaSeparatedValuesProduceASmallerSubset: false, // MANDATORY crash with a clear error message when it's missing
  *    ]
  * },
  * 
@@ -253,17 +334,25 @@ function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOpt
     );
   } else if (optimisationOptions.mode === 'HIGH') {
     const url = relativePathToUrlObj(currentPath);
-    const queryParamsThatNotExclusivelyLimitTheResultSet = [
-      ...sriQueryParamsThatNotExclusivelyLimitTheResultSet,
-      ...(optimisationOptions.queryParamsThatNotExclusivelyLimitTheResultSet || []),
-    ];
     return [...rawPaths].some(
-      p => pathNameIsEqualAndSearchParamsProduceSubset(url, relativePathToUrlObj(p), queryParamsThatNotExclusivelyLimitTheResultSet)
+      p => pathNameIsEqualAndSearchParamsProduceSubset(url, relativePathToUrlObj(p), optimisationOptions)
     );
   } else if (optimisationOptions.mode === 'AGGRESSIVE') {
-    const strippedUrl = stripSpecialSriQueryParamsFromParsedUrl(relativePathToUrlObj(currentPath));
+    const url = relativePathToUrlObj(currentPath);
+    const strippedUrl = stripSpecialSriQueryParamsFromParsedUrl(url);
+
+    if (Array.from(url.searchParams).length===1 && url.searchParams.get('hrefs')!==null) {
+        // This is a special case where sri4node just returns the set of permalinks of the hrefs parameter value
+        // --> check if these permalinks are literally in the raw resources.
+        const hrefs = url.searchParams.get('hrefs').split(',');
+        if (hrefs.every(h => rawPaths.includes(h))) {
+            return true;
+        }
+    }
+
     return [...rawPaths].some(
-      p => pathNameIsEqualAndSearchParamsProduceSubset(strippedUrl, relativePathToUrlObj(p), queryParamsThatNotExclusivelyLimitTheResultSet  || [])
+      p => pathNameIsEqualAndSearchParamsProduceSubset(strippedUrl, relativePathToUrlObj(p), optimisationOptions)
+            || pathNameAndSearchParamsAreEqual(url, relativePathToUrlObj(p))  // allow exact match incuding SpecialSriQueryParams
     );
   } else {
     throw Error('[isPathAllowedBasedOnRawUrls] optimisationOptions.mode not known');
@@ -276,4 +365,5 @@ module.exports = {
   stripQueryParamsFromParsedUrl,
   searchParamsProduceSubset,
   isPathAllowedBasedOnResourcesRaw,
+  addSriDefaultsToOptimisationOptions
 };

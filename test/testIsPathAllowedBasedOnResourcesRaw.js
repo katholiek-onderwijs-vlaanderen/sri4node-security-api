@@ -5,7 +5,8 @@ const { assert } = require('chai');
 // const sri4nodeUtilsMock = require('./sri4nodeUtilsMock');
 const { describe, before, it } = require('mocha');
 
-const { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl, searchParamsProduceSubset } = require('../js/utils')
+const { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl, 
+        searchParamsProduceSubset, addSriDefaultsToOptimisationOptions } = require('../js/utils')
 
 const optionsOptimisationModeNone = { mode: 'NONE' };
 const optionsOptimisationModeNormal = { mode: 'NORMAL' };
@@ -13,10 +14,43 @@ const optionsOptimisationModeHigh = {
   mode: 'HIGH',
   queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
 };
+addSriDefaultsToOptimisationOptions(optionsOptimisationModeHigh);
+
 const optionsOptimisationModeAggressive = {
   mode: 'AGGRESSIVE',
   queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
+  multiValuedPropertyConfig: [
+    { name: 'roots',
+      aliases: [ 'rootIn' ],
+      correspondingSingleValuedProperty: {
+        name: 'root',
+        aliases: [ 'wortel' ],
+      },
+      moreCommaSeparatedValuesProduceASmallerSubset: false,
+    },
+    { name: 'sex',
+      aliases: [ 'sexIn' ],
+      moreCommaSeparatedValuesProduceASmallerSubset: false,
+    },
+  ]
 };
+addSriDefaultsToOptimisationOptions(optionsOptimisationModeAggressive);
+
+const optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset = {
+    mode: 'AGGRESSIVE',
+    queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
+    multiValuedPropertyConfig: [
+      { name: 'tags',
+        aliases: [ 'tagContains' ],
+        moreCommaSeparatedValuesProduceASmallerSubset: true,
+      },
+    ]
+  };
+addSriDefaultsToOptimisationOptions(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset);
+
+
+
+
 
 const someGuid = 'c005ac30-1b04-46f9-8fb0-df622b27e793';
 
@@ -117,6 +151,13 @@ function assertsCurrentPathLiterallyInRawResources(mode, expectedReturn) {
     isPathAllowedBasedOnResourcesRaw(
       '/llinkid/activityplanning/activityplans/activities/?rootWithContextContains=%2Fsam%2Forganisationalunits%2Fc61d3a60-3656-4f13-b6f1-af8f744d0d4d&limit=5000&keyOffset=2020-10-01T14%3A48%3A08.648325Z%2C3b0a095d-b525-4f8a-ac55-24fcb3a2ddc9&$$meta.deleted=any',
       ['/llinkid/activityplanning/activityplans/activities?rootWithContextContains=/sam/organisationalunits/c61d3a60-3656-4f13-b6f1-af8f744d0d4d&$$meta.deleted=any'],
+      mode,
+    ), expectedReturn
+  );
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons/?sexIn=MALE,FEMALE',
+      ['/persons?sexIn=MALE,FEMALE'],
       mode,
     ), expectedReturn
   );
@@ -296,6 +337,550 @@ function assertsCurrentPathPotentiallyExtendsRawResources(mode, expectedReturn) 
 }
 
 
+function assertsCurrentPathMatchesRawResourcesWithIn(mode, expectedReturn) {
+    assert.equal(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=FEMALE',
+        ['/persons?sexIn=FEMALE', `/persons/${someGuid}`],
+        mode,
+      ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?sex=FEMALE',
+          ['/persons?sexIn=MALE,FEMALE', `/persons/${someGuid}`],
+          mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?sex=FEMALE',
+          ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
+          mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?sexIn=FEMALE',
+            ['/persons?sexIn=MALE,FEMALE', `/persons/${someGuid}`],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?sexIn=FEMALE',
+            ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?sexIn=FEMALE,MALE',
+            ['/persons?sexIn=MALE,FEMALE', `/persons/${someGuid}`],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?sexIn=FEMALE,INTERSEX',
+            ['/persons?sexIn=FEMALE,MALE,INTERSEX', `/persons/${someGuid}`],
+            mode,
+        ), expectedReturn
+    );
+  }
+
+  function assertsCurrentPathNotMatchesRawResourcesWithIn(mode, expectedReturn) {
+    assert.equal(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?sex=FEMALE',
+        ['/persons?sexIn=', `/persons/${someGuid}`],
+        mode,
+      ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?sex=FEMALE',
+          ['/persons?sexIn=MALE,INTERSEX', `/persons/${someGuid}`],
+          mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?sex=',
+          ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
+          mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?sexIn=FEMALE',
+            ['/persons?sexIn=', `/persons/${someGuid}`],
+            mode,
+        ), expectedReturn
+    );
+      assert.equal(
+          isPathAllowedBasedOnResourcesRaw(
+              '/persons?sexIn=FEMALE,MALE',
+              ['/persons?sexIn=MALE,INTERSEX', `/persons/${someGuid}`],
+              mode,
+          ), expectedReturn
+      );
+      assert.equal(
+          isPathAllowedBasedOnResourcesRaw(
+              '/persons?sexIn=FEMALE,MALE,INTERSEX',
+              ['/persons?sexIn=FEMALE,MALE', `/persons/${someGuid}`],
+              mode,
+          ), expectedReturn
+      );
+  }
+
+  function assertsCurrentPathMatchesHrefsWithSingletonInRawResources(mode, expectedReturn) {
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?hrefs=/persons/123',
+          ['/persons/123'],
+          mode,
+        ), expectedReturn
+      );
+      assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?hrefs=/persons/123,/persons/456',
+          ['/persons/123', '/persons/456'],
+          mode,
+        ), expectedReturn
+      );
+      assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?hrefs=/persons/123,/persons/456',
+          ['/persons/456', '/persons/123'],
+          mode,
+        ), expectedReturn
+      );
+  }
+
+  function assertsCurrentPathNotMatchingHrefsWithSingletonInRawResources(mode, expectedReturn) {
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?hrefs=/persons/123',
+          ['/persons/128'],
+          mode,
+        ), expectedReturn
+      );
+      assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?hrefs=/persons/123,/persons/456',
+          ['/persons/128', '/persons/456'],
+          mode,
+        ), expectedReturn
+      );
+      assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?hrefs=/persons/123,/persons/456',
+          ['/persons/456', '/persons/128'],
+          mode,
+        ), expectedReturn
+      );
+      assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?hrefs=/persons/123,/persons/456',
+          ['/persons/456'],
+          mode,
+        ), expectedReturn
+      );
+  }
+
+  function assertsCurrentPathMatchesRawResourcesHref(mode, expectedReturn) {
+    assert.equal(
+      isPathAllowedBasedOnResourcesRaw(
+        '/persons?hrefs=/persons/123',
+        ['/persons?hrefs=/persons/123,/persons/456'],
+        mode,
+      ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+          '/persons?hrefs=/persons/123',
+          ['/persons?hrefs=/persons/456,/persons/123'],
+          mode,
+        ), expectedReturn
+      );
+  }
+
+
+  function assertsCurrentPathNotMatchingRawResourcesMultivalue(mode, expectedReturn) {
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?roots=/persons/456,/persons/123,/persons/789',
+            ['/persons?roots=/persons/123,/persons/456'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?rootIn=/persons/456,/persons/123,/persons/789',
+            ['/persons?roots=/persons/123,/persons/456'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?roots=/persons/456,/persons/123,/persons/789',
+            ['/persons?rootIn=/persons/123,/persons/456'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?rootIn=/persons/456,/persons/123,/persons/789',
+            ['/persons?rootIn=/persons/123,/persons/456'],
+            mode,
+        ), expectedReturn
+    );
+  }
+
+  function assertsCurrentPathMatchesRawResourcesMultiValue(mode, expectedReturn) {
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?root=/persons/123',
+            ['/persons?roots=/persons/123,/persons/456'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?root=/persons/123',
+            ['/persons?roots=/persons/456,/persons/123'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?root=/persons/123',
+            ['/persons?roots=/persons/123'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?root=/persons/123',
+            ['/persons?rootIn=/persons/123,/persons/456'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?root=/persons/123',
+            ['/persons?rootIn=/persons/456,/persons/123'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?root=/persons/123',
+            ['/persons?rootIn=/persons/123'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?wortel=/persons/123',
+            ['/persons?roots=/persons/123,/persons/456'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?wortel=/persons/123',
+            ['/persons?roots=/persons/456,/persons/123'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?wortel=/persons/123',
+            ['/persons?roots=/persons/123'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?wortel=/persons/123',
+            ['/persons?rootIn=/persons/123,/persons/456'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?wortel=/persons/123',
+            ['/persons?rootIn=/persons/456,/persons/123'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?wortel=/persons/123',
+            ['/persons?rootIn=/persons/123'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?roots=/persons/456,/persons/123',
+            ['/persons?roots=/persons/123,/persons/456'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/persons?roots=/persons/456,/persons/123',
+            ['/persons?roots=/persons/123,/persons/456,/persons/789'],
+            mode,
+        ), expectedReturn
+    );
+}
+
+function assertsCurrentPathNotMatchingRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(mode, expectedReturn) {
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A',
+            ['/content?tags=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=C',
+            ['/content?tags=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,C',
+            ['/content?tags=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,C',
+            ['/content?tags=B'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A',
+            ['/content?tags=B'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A',
+            ['/content?tagContains=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=C',
+            ['/content?tagContains=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,C',
+            ['/content?tagContains=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,C',
+            ['/content?tagContains=B'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A',
+            ['/content?tagContains=B'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A',
+            ['/content?tags=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=C',
+            ['/content?tags=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,C',
+            ['/content?tags=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,C',
+            ['/content?tags=B'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A',
+            ['/content?tags=B'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A',
+            ['/content?tagContains=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=C',
+            ['/content?tagContains=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,C',
+            ['/content?tagContains=A,B,C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,C',
+            ['/content?tagContains=B'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A',
+            ['/content?tagContains=B'],
+            mode,
+        ), expectedReturn
+    );
+}
+
+function assertsCurrentPathMatchesRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(mode, expectedReturn) {
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,B,C',
+            ['/content?tags=A'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,B,C',
+            ['/content?tags=C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,B,C',
+            ['/content?tags=B,C'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,B,C',
+            ['/content?tags=A'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,B,C',
+            ['/content?tags=C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,B,C',
+            ['/content?tags=B,C'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,B,C',
+            ['/content?tagContains=A'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,B,C',
+            ['/content?tagContains=C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tags=A,B,C',
+            ['/content?tagContains=B,C'],
+            mode,
+        ), expectedReturn
+    );
+
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,B,C',
+            ['/content?tagContains=A'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,B,C',
+            ['/content?tagContains=C'],
+            mode,
+        ), expectedReturn
+    );
+    assert.equal(
+        isPathAllowedBasedOnResourcesRaw(
+            '/content?tagContains=A,B,C',
+            ['/content?tagContains=B,C'],
+            mode,
+        ), expectedReturn
+    );
+}
+
+
+
 describe('stripQueryParamsFromParsedUrl(...)', function () {
   'use strict';
 
@@ -356,8 +941,10 @@ describe('stripQueryParamsFromParsedUrl(...)', function () {
 
 describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryParamsThatNotExclusivelyLimitTheResultSet)', function () {
   'use strict';
-
-  const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
+  
+  const optionsOptimisation = {
+    queryParamsThatNotExclusivelyLimitTheResultSet: [ 'nonLimitingQueryParam' ]
+  }
 
   before(function () {});
 
@@ -366,7 +953,7 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
         new URLSearchParams('sex=MALE'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     )
   });
@@ -376,7 +963,7 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01&nonLimitingQueryParam=hello'),
         new URLSearchParams('sex=MALE&nonLimitingQueryParam=hello'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     );
 
@@ -384,31 +971,31 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01&$$meta.deleted=any'),
         new URLSearchParams('sex=MALE&$$meta.deleted=any'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     );
   });
 
   it('should return false if left has less params than right', function () {
-    const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
+    // const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
 
     assert.isFalse(
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE'),
         new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     );
   });
 
   it('should return false if only left has a non limiting query param', function () {
-    const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
+    // const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
 
     assert.isFalse(
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE&$$meta.deleted=true'),
         new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     );
 
@@ -416,7 +1003,7 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE&$$meta.deleted=false'),
         new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     );
 
@@ -424,20 +1011,20 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE&$$meta.deleted=any'),
         new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     );
 
   });
 
   it('should return false if both left and right have a non limiting query param, but the value is different', function () {
-    const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
+    // const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
 
     assert.isFalse(
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE&$$meta.deleted=true'),
         new URLSearchParams('sex=MALE&$$meta.deleted=false'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     );
 
@@ -445,7 +1032,7 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE&$$meta.deleted=true'),
         new URLSearchParams('sex=MALE&$$meta.deleted=any'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     );
 
@@ -453,7 +1040,7 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
       searchParamsProduceSubset(
         new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01&$$meta.deleted=false'),
         new URLSearchParams('sex=MALE&$$meta.deleted=any'),
-        queryParamsThatNotExclusivelyLimitTheResultSet,
+        optionsOptimisation,
       ),
     );
   });
@@ -485,6 +1072,15 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is NONE',
     assertsCurrentPathWithoutSpecialQueryParamsSubsetOfRawResources(optionsOptimisationModeNone, false);
     assertsCurrentPathWithoutSpecialQueryParamsNoSubsetOfRawResources(optionsOptimisationModeNone, false);
     assertsCurrentPathPotentiallyExtendsRawResources(optionsOptimisationModeNone, false);
+    assertsCurrentPathMatchesRawResourcesWithIn(optionsOptimisationModeNone, false);
+    assertsCurrentPathNotMatchesRawResourcesWithIn(optionsOptimisationModeNone, false);
+    assertsCurrentPathMatchesHrefsWithSingletonInRawResources(optionsOptimisationModeNone, false);
+    assertsCurrentPathNotMatchingHrefsWithSingletonInRawResources(optionsOptimisationModeNone, false);
+    assertsCurrentPathMatchesRawResourcesHref(optionsOptimisationModeNone, false);
+    assertsCurrentPathNotMatchingRawResourcesMultivalue(optionsOptimisationModeNone, false);
+    assertsCurrentPathMatchesRawResourcesMultiValue(optionsOptimisationModeNone, false);
+    assertsCurrentPathNotMatchingRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeNone, false);
+    assertsCurrentPathMatchesRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeNone, false);
   });
 });
 
@@ -511,6 +1107,14 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is NORMAL
 
   it('should return false if currentPath (without special query params) contains a query param that expands or totally modifies the resultset (like $$meta.deleted=any or true) so that it is potentially no subset anymore of any url found in the raw resources list', function () {
     assertsCurrentPathPotentiallyExtendsRawResources(optionsOptimisationModeNormal, false);
+  });
+
+  it('should return false if currentPath (without special query params) contains a query param that matches as subset of an "In"-parameter in the raw resources list', function () {
+    assertsCurrentPathMatchesRawResourcesWithIn(optionsOptimisationModeNormal, false);
+  });
+
+  it('should return false if currentPath (without special query params) contains a query param that not matches as subset of an "In"-parameter in the raw resources list', function () {
+    assertsCurrentPathNotMatchesRawResourcesWithIn(optionsOptimisationModeNormal, false);
   });
 });
 
@@ -542,4 +1146,78 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is HIGH',
     assertsCurrentPathPotentiallyExtendsRawResources(optionsOptimisationModeHigh, false);
   });
 
+  it('should return false if currentPath (without special query params) contains a query param that matches as subset of an "In"-parameter in the raw resources list', function () {
+    assertsCurrentPathMatchesRawResourcesWithIn(optionsOptimisationModeHigh, false);
+  });
+
+  it('should return false if currentPath (without special query params) contains a query param that not matches as subset of an "In"-parameter in the raw resources list', function () {
+    assertsCurrentPathNotMatchesRawResourcesWithIn(optionsOptimisationModeHigh, false);
+  });
 });
+
+describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is AGGRESSIVE', function () {
+    'use strict';
+
+    it('should always return false with empty raw resources set', function () {
+      assertWithEmptyRawResources(optionsOptimisationModeAggressive);
+    });
+
+    it('should return true if the currentPath is literally to be found in the raw resources list', function () {
+      assertsCurrentPathLiterallyInRawResources(optionsOptimisationModeAggressive, true);
+    });
+
+    it('should return true if the currentPath without special query params is found in the raw resources list', function () {
+      assertsCurrentPathWithoutSpecialQueryParamsInRawResources(optionsOptimisationModeAggressive, true);
+    });
+
+    it('should return true if the currentPath (without special query params) is found to be a subset of one found in the raw resources list', function () {
+      assertsCurrentPathWithoutSpecialQueryParamsSubsetOfRawResources(optionsOptimisationModeAggressive, true);
+    });
+
+    it('should return false if the currentPath (without special query params) is no subset of any url found in the raw resources list', function () {
+      assertsCurrentPathWithoutSpecialQueryParamsNoSubsetOfRawResources(optionsOptimisationModeAggressive, false);
+    });
+
+    it('should return false if currentPath (without special query params) contains a query param that expands or totally modifies the resultset (like $$meta.deleted=any or true) so that it is potentially no subset anymore of any url found in the raw resources list', function () {
+      assertsCurrentPathPotentiallyExtendsRawResources(optionsOptimisationModeAggressive, false);
+    });
+
+    it('should return true if currentPath (without special query params) contains a query param that matches as subset of an "In"-parameter in the raw resources list', function () {
+        assertsCurrentPathMatchesRawResourcesWithIn(optionsOptimisationModeAggressive, true);
+    });
+
+    it('should return false if currentPath (without special query params) contains a query param that not matches as subset of an "In"-parameter in the raw resources list', function () {
+        assertsCurrentPathNotMatchesRawResourcesWithIn(optionsOptimisationModeAggressive, false);
+    });
+
+    it('should return true if currentPath (without special query params) hrefs parameter matches with single resource(s) in resources raw', function () {
+        assertsCurrentPathMatchesHrefsWithSingletonInRawResources(optionsOptimisationModeAggressive, true);
+    });
+
+    it('should return false if currentPath (without special query params) hrefs parameter does not match with single resource(s) in resources raw', function () {
+        assertsCurrentPathNotMatchingHrefsWithSingletonInRawResources(optionsOptimisationModeAggressive, false);
+    });
+    it('should return true if currentPath (without special query params) hrefs parameter is a subset of hrefs parameter in resources raw', function () {
+        assertsCurrentPathMatchesRawResourcesHref(optionsOptimisationModeAggressive, true);
+    });
+    it('should return false if currentPath (without special query params) multivalue parameter is not a subset of hrefs parameter in resources raw', function () {
+        assertsCurrentPathNotMatchingRawResourcesMultivalue(optionsOptimisationModeAggressive, false);
+    });
+    it('should return true if currentPath (without special query params) multivalue parameter is subset of multivalue parameter in resources raw', function () {
+        assertsCurrentPathMatchesRawResourcesMultiValue(optionsOptimisationModeAggressive, true);
+    });
+
+    it('should return false if currentPath (without special query params) multivalue parameter is not a subset of hrefs parameter in resources raw (with OptionMoreCommaSeparatedValuesProduceASmallerSubset true)', function () {
+        assertsCurrentPathNotMatchingRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset, false);
+    });
+    it('should return true if currentPath (without special query params) multivalue parameter is a subset of hrefs parameter in resources raw (with OptionMoreCommaSeparatedValuesProduceASmallerSubset true)', function () {
+        assertsCurrentPathMatchesRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset, true)
+    });
+
+});
+
+// TODO: test for error messages in case of
+//   * unspecified mode
+//   * check on error thrown  in case of aliases is not list
+//   * multiValuedPropertyConfig config provided without name
+//   * multiValuedPropertyConfig config provided without moreCommaSeparatedValuesProduceASmallerSubset
