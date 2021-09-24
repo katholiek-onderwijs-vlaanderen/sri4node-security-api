@@ -167,6 +167,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
         await pMap(Object.keys(map), async keyStr => {
             console.log(`Checking security for ${keyStr}`);
+            const start = new Date();
             const subMap = map[keyStr];
             const rawUrlList = Object.keys(subMap);
             const allKeys = _.uniq(_.flatten(rawUrlList.map(u => subMap[u].keys)));
@@ -224,13 +225,17 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                        ON sriq.key = ck.key
                        WHERE sriq.key IS NULL;`);
 
-                const start = new Date();
+                const startQuery = new Date();
                 keysNotMatched = (await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key);
-                debug('sri-security', 'security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+                debug('sri-security', 'security db check, security query time=' + (new Date() - startQuery) + ' ms.')
             }
 
             if (keysNotMatched.length > 0) {
                 debug('sri-security', `keysNotMatched: ${keysNotMatched}`)
+            }
+
+            if (relevantSriRequests.length === 1) {
+              relevantSriRequests[0].securityHandling = `db_check (${(new Date() - start)}ms)`;
             }
 
             relevantSriRequests.forEach(sriRequest => {
@@ -277,18 +282,21 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         }
     }
 
+    function composeRawResourcesUrl(component, operation, person) {
+      return '/security/query/resources/raw?component=' + component
+        + '&ability=' + operation
+        + '&person=' + person;
+    }
 
     async function requestRawResourcesFromSecurityServer(component, operation, person) {
-        const url = '/security/query/resources/raw?component=' + component
-            + '&ability=' + operation
-            + '&person=' + person;
+        const url = composeRawResourcesUrl(component, operation, person);
         // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
         // (needs change in security API)
 
         const start = new Date();
 
         const [resourcesRaw] = await doSecurityRequest([{ href: url, verb: 'GET' }]);
-        debug('sri-security', 'response security, securitytime=' + (new Date() - start) + ' ms.')
+        debug('sri-security', 'time to fetch raw resources=' + (new Date() - start) + ' ms.')
         return resourcesRaw;
     }
 
@@ -317,11 +325,13 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         if (sriRequest.containsDeleted) {
             if (relevantRawResources.includes(superUserResourceInclDeleted)) {
                 debug('sri-security', 'super user access')
+                sriRequest.securityHandling='super_user';
                 return true
             }
         } else {
             if (relevantRawResources.includes(superUserResource) || relevantRawResources.includes(superUserResourceInclDeleted)) {
                 debug('sri-security', 'super user access')
+                sriRequest.securityHandling='super_user';
                 return true
             }
         }
@@ -353,6 +363,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             }
 
             if (relevantRawResources.length === 0) {
+                sriRequest.securityHandling = 'no_relevant_raw_resources'
                 // This request has keys for which permission is required but no relevant resources 
                 //  --> obviously we can already disallow the request without any database check.
                 handleNotAllowed(sriRequest);
@@ -364,6 +375,8 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                     await checkKeysAgainstDatabase([sriRequest]);
                 }
             }
+        } else {
+          sriRequest.securityHandling = 'no_keys_to_check'
         }
     }
 
@@ -439,6 +452,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             const superuserRawUrl = `${resourceType}?$$meta.deleted=any`
             if (rawResourcesList.includes(superuserRawUrl)) {
                 debug('sri-security', `super_user rights on ${resourceType}`)
+                sriRequest.securityHandling='super_user';
                 return true;
             }
 
@@ -514,6 +528,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         beforePhaseHook,
         getBaseUrl,
         clearRawUrlCaches,
+        composeRawResourcesUrl,
         requestRawResourcesFromSecurityServer
     }
 

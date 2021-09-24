@@ -134,12 +134,8 @@ const addSriDefaultsToOptimisationOptions = (optimisationOptions) => {
             : sriMultiValuedPropertyConfig;
     }
 
-    if (optimisationOptions.mode === 'HIGH') {
-        addSriQueryParamsThatNotExclusivelyLimitTheResultSet(optimisationOptions);
-    } else if (optimisationOptions.mode === 'AGGRESSIVE') {
-        addSriQueryParamsThatNotExclusivelyLimitTheResultSet(optimisationOptions);
-        addSriMultiValuedPropertyConfig(optimisationOptions);
-    }
+    addSriQueryParamsThatNotExclusivelyLimitTheResultSet(optimisationOptions);
+    addSriMultiValuedPropertyConfig(optimisationOptions);
 }
 
 
@@ -191,7 +187,7 @@ function pathNameAndSearchParamsAreEqual(parsedUrl1, parsedUrl2) {
 function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, optimisationOptions) {
 
   // replace aliases with their regular name
-  if (optimisationOptions.mode === 'AGGRESSIVE') {
+  if (optimisationOptions.mode === 'AGGRESSIVE' && optimisationOptions.multiValuedPropertyConfig !== undefined) {
     const replaceAliases = (urlSearchParams) => {
         for (const [key, value] of urlSearchParams) {
             const multiValueConfig = optimisationOptions.multiValuedPropertyConfig.find(obj =>
@@ -221,7 +217,9 @@ function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, optimisat
   const leftParamsHasAllTheRightParamsAndMaybeMore = rightEntries
     .every(([key, value]) => {
         if (optimisationOptions.mode === 'AGGRESSIVE') {
-            const multiValueConfig = optimisationOptions.multiValuedPropertyConfig.find(obj => obj.name === key);
+            const multiValueConfig = (optimisationOptions.multiValuedPropertyConfig !== undefined)
+                    ? optimisationOptions.multiValuedPropertyConfig.find(obj => obj.name === key)
+                    : undefined
             if (multiValueConfig !== undefined) {
                 const leftValue = urlSearchParams1.get(key);
                 if (leftValue && value) {
@@ -369,5 +367,7 @@ module.exports = {
   stripQueryParamsFromParsedUrl,
   searchParamsProduceSubset,
   isPathAllowedBasedOnResourcesRaw,
-  addSriDefaultsToOptimisationOptions
+  addSriDefaultsToOptimisationOptions,
+  sortSearchParamString,
+  stripSpecialSriQueryParamsFromParsedUrl
 };

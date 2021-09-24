@@ -1,7 +1,7 @@
 const utils = require('./js/utils');
 const { debug, error } = require('sri4node/js/common.js')
 
-const { getPersonFromSriRequest, parseResource } = require('sri4node/js/common.js')
+const { getPersonFromSriRequest, parseResource, SriError } = require('sri4node/js/common.js')
 
 /**
  * @typedef {import("./js/utils").QueryParam} QueryParam
@@ -54,12 +54,55 @@ module.exports = function (pluginConfig) {
       this.init(sriConfig, db);
 
       const listRequestOptimization = async function(tx, sriRequest) {
-        if (parseResource(sriRequest.originalUrl).query !== null) {
-            if (pluginConfig.optimisation.mode !== 'NONE') {
-                const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest));
-                sriRequest.listRequestAllowedByRawResourcesOptimization =
-                    utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl, resourcesRaw, pluginConfig.optimisation);
-            }
+        if (!sriRequest.isBatchPart===true) {
+          const pr = parseResource(sriRequest.originalUrl);
+          if (pr.id === null && pr.query !== null) {
+              if (pluginConfig.optimisation.mode !== 'NONE' && pluginConfig.optimisation.mode !== 'DEBUG') {
+                  const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest));
+                  sriRequest.listRequestAllowedByRawResourcesOptimization =
+                      utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl, resourcesRaw, pluginConfig.optimisation);
+              }
+          }
+        }
+      }
+
+      const optimisationDebugEnabled = (sriRequest, ability) => {
+        if ((parseResource(sriRequest.originalUrl).query !== null) && (ability==='read') && (pluginConfig.optimisation.mode === 'DEBUG')) {
+          return true;
+        }
+      }
+
+      const handleDebugOptimisation = async (sriRequest, ability, allowed) => {
+        if (optimisationDebugEnabled(sriRequest, ability)) {
+          const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest));
+
+          const optimisationResultWithNormal = utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl,
+            resourcesRaw, { ...pluginConfig.optimisation, mode: 'NORMAL' });
+          const optimisationResultWithHigh = utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl,
+            resourcesRaw, { ...pluginConfig.optimisation, mode: 'HIGH' });
+          const optimisationResultWithAggressive = utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl,
+            resourcesRaw, { ...pluginConfig.optimisation, mode: 'AGGRESSIVE' });
+          const strippedUrl = utils.stripSpecialSriQueryParamsFromParsedUrl(new URL(sriRequest.originalUrl, 'https://xyz.com'));
+          strippedUrl.searchParams.sort();
+          const urlTemplate = strippedUrl.pathname + '/' + [...strippedUrl.searchParams.keys()].map(key => key + '=...').join('&');
+
+          const json = {
+            url: sriRequest.originalUrl,
+            urlTemplate: urlTemplate,
+            rawResources: security.composeRawResourcesUrl(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest)),
+            unoptimised: allowed,
+            handling: sriRequest.securityHandling,
+            normal: optimisationResultWithNormal,
+            high: optimisationResultWithHigh,
+            aggressive: optimisationResultWithAggressive,
+            normalIsFalsePositive: optimisationResultWithNormal && (allowed === false),
+            highIsFalsePositive: optimisationResultWithHigh && (allowed === false),
+            aggressiveIsFalsePositive: optimisationResultWithAggressive && (allowed === false),
+            normalIsFalseNegative: (optimisationResultWithNormal === false) && allowed,
+            highIsFalseNegative: (optimisationResultWithHigh === false) && allowed,
+            aggressiveIsFalseNegative: (optimisationResultWithAggressive === false) && allowed,
+          }
+          debug('sri-security', JSON.stringify(json));
         }
       }
 
@@ -67,15 +110,35 @@ module.exports = function (pluginConfig) {
         // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
         if ( pluginConfig.defaultComponent==='/security/components/security-api' 
               &&  sriRequest.userObject && sriRequest.userObject.username==='app.security' ) {
+          debug('sri-security', 'Used bootstrap security bypass.');
           return;
         }
 
-        if (ability==='read' && sriRequest.listRequestAllowedByRawResourcesOptimization===true) {
-          debug('sri-security', 'Used security optimization for listResources.');
-          return;
+        if (sriRequest.isBatchPart === true) {
+          const pr = parseResource(sriRequest.originalUrl);
+          if (ability==='read' && pr.id === null && pr.query !== null) {
+            debug('sri-security', `list resource (${sriRequest.originalUrl}) requested as part of batch -- currently security optimization is not available for such batch parts. `);
+          }
+          await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, false)
+        } else {
+          if (ability==='read' && sriRequest.listRequestAllowedByRawResourcesOptimization===true) {
+            debug('sri-security', 'Used security optimization for listResources.');
+            return;
+          }
+          try {
+            await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, true)
+            if (pluginConfig.optimisation.mode !== 'NONE' && pluginConfig.optimisation.mode !== 'DEBUG') {
+              // if we get here with optimisation enabled, it is a false negative
+              debug('sri-security', `listResource optimisation false negative: ${sriRequest.originalUrl}`);
+            }
+            await handleDebugOptimisation(sriRequest, ability, true);
+          } catch(err) {
+            if (err instanceof SriError) {
+              await handleDebugOptimisation(sriRequest, ability, false);
+            }
+            throw err;
+          }
         }
-
-        await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, false)
       }
 
       const checkForSecurityBypass = async () => {
