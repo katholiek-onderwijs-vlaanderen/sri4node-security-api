@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.0.53 (28-09-2021)
+
+* added allowedCheckWithRawAndIsPartOfBatch function, to be able to do the allowed check by requesting raw resources and calling ispartof to api's - to offload the new security server
+* bugfix: use pglisten/notify for clearing cache of raw resources lookup (nescessary to make the caching mechanism also usable for apps running on multiple dyno's/processes)
+
+
 ## 2.0.46 (18-03-2021)
 * bugfix: pass sriRequestID with SriError to indicate on which sriRequest an error was thrown in a global hook, otherwise sri4node indicates the error in a random element of the batch in the JSON result instead of the one causing the error (requires sri4node sprint-239-0 or later) 
 * bugfix: deal with permalinks received as raw urls from security (was probably broken since the refactor to optimize batch security by combining checks of all batch elements)
