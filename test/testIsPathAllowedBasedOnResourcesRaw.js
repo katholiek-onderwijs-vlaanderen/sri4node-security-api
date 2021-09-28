@@ -3,7 +3,6 @@ const { assert } = require('chai');
 
 // const nock = require('nock');
 // const sri4nodeUtilsMock = require('./sri4nodeUtilsMock');
-const { describe, before, it } = require('mocha');
 
 const { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl, 
         searchParamsProduceSubset, addSriDefaultsToOptimisationOptions } = require('../js/utils')
