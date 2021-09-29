@@ -339,6 +339,51 @@ function assertsCurrentPathPotentiallyExtendsRawResources(mode, expectedReturn) 
   );
 }
 
+/**
+ * For AGRESSIVE MODE we want that
+ * /persons?$$meta.deleted=any&sex=FEMALE is considered a part of /persons?$$meta.deleted=any
+ *
+ * because the key AND the value of the 'potentially extending' property $$meta.deleted
+ * are exactly equal on both sides
+ *
+ * and also that
+ *  /persons?$$meta.deleted=any&nameIn=John is considered a part of /persons?$$meta.deleted=any&&nameIn=John,Bert,Calvin
+
+ * @typedef {import("../js/utils").QueryParam} QueryParam
+ *
+ * @typedef {import("../js/utils").MultiValuedPropertyConfig} MultiValuedPropertyConfig
+ *
+ * @typedef {import("../js/utils").OptimisationOptions} OptimisationOptions
+
+ * @param {OptimisationOptions} mode
+ * @param {boolean} expectedReturn
+ */
+function assertsCurrentPathPotentiallyExtendsRawResourcesButBothSidesMatch(mode, expectedReturn) {
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=FEMALE&$$meta.deleted=any',
+      ['/persons?$$meta.deleted=any'],
+      mode,
+    ), expectedReturn
+  );
+
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?sex=FEMALE&$$meta.deleted=any',
+      ['/persons?$$meta.deleted=any&sex=FEMALE'],
+      mode,
+    ), expectedReturn
+  );
+
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/persons?root=John&$$meta.deleted=any',
+      ['/persons?$$meta.deleted=any&rootIn=John,Bert,Isaac'],
+      mode,
+    ), expectedReturn
+  );
+
+}
 
 function assertsCurrentPathMatchesRawResourcesWithIn(mode, expectedReturn) {
   assert.equal(
@@ -958,7 +1003,32 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
         new URLSearchParams('sex=MALE'),
         optionsOptimisation,
       ),
-    )
+    );
+
+    assert.isTrue(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01&$$meta.deleted=any'),
+        new URLSearchParams('sex=MALE&$$meta.deleted=any'),
+        optionsOptimisation,
+      ),
+    );
+
+    assert.isTrue(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01&$$meta.deleted=false'),
+        new URLSearchParams('sex=MALE&$$meta.deleted=false'),
+        optionsOptimisation,
+      ),
+    );
+
+    assert.isTrue(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&birthDateBefore=2000-01-01&$$meta.deleted=true'),
+        new URLSearchParams('sex=MALE&$$meta.deleted=true'),
+        optionsOptimisation,
+      ),
+    );
+
   });
 
   it('should return true if both sides contain exactly the same queryParamThatNotExclusivelyLimitsTheResultSet', function () {
@@ -977,7 +1047,26 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
         optionsOptimisation,
       ),
     );
+
+    assert.isTrue(
+      searchParamsProduceSubset(
+        new URLSearchParams('sex=MALE&$$meta.deleted=any'),
+        new URLSearchParams('$$meta.deleted=any'),
+        optionsOptimisation,
+      ),
+    );
   });
+
+  it('should return true if both sides contain exactly the same queryParamThatNotExclusivelyLimitsTheResultSet and other comma-separated params are optimized as in IN AGGRESSIVE MODE', function () {
+    assert.isTrue(
+      searchParamsProduceSubset(
+        new URLSearchParams('roots=John&$$meta.deleted=any'),
+        new URLSearchParams('$$meta.deleted=any&rootIn=John,Bert,Isaac'),
+        optionsOptimisationModeAggressive,
+      ),
+    );
+  });
+
 
   it('should return false if left has less params than right', function () {
     // const queryParamsThatNotExclusivelyLimitTheResultSet = [ 'nonLimitingQueryParam' ];
@@ -1185,6 +1274,11 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is AGGRES
     assertsCurrentPathPotentiallyExtendsRawResources(optionsOptimisationModeAggressive, false);
   });
 
+  it('should return true if $$meta.deleted=... (or other a query params that expand or shift the resultset) has the exact same value on both sides', function () {
+    assertsCurrentPathPotentiallyExtendsRawResourcesButBothSidesMatch(optionsOptimisationModeAggressive, true);
+  });
+
+
   it('should return true if currentPath (without special query params) contains a query param that matches as subset of an "In"-parameter in the raw resources list', function () {
     assertsCurrentPathMatchesRawResourcesWithIn(optionsOptimisationModeAggressive, true);
   });
@@ -1209,6 +1303,7 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is AGGRES
   it('should return true if currentPath (without special query params) multivalue parameter is subset of multivalue parameter in resources raw', function () {
     assertsCurrentPathMatchesRawResourcesMultiValue(optionsOptimisationModeAggressive, true);
   });
+
 
   it('should return false if currentPath (without special query params) multivalue parameter is not a subset of hrefs parameter in resources raw (with OptionMoreCommaSeparatedValuesProduceASmallerSubset true)', function () {
     assertsCurrentPathNotMatchingRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset, false);
