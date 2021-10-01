@@ -52,7 +52,59 @@ const optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmall
 addSriDefaultsToOptimisationOptions(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset);
 
 
-
+const optionsActivityplansApi = {
+  mode: 'AGGRESSIVE',
+  queryParamsThatNotExclusivelyLimitTheResultSet: [],
+  "multiValuedPropertyConfig": [{
+    "name": "curricula",
+    "moreCommaSeparatedValuesProduceASmallerSubset": false,
+    "aliases": [],
+    "correspondingSingleValuedProperty": {
+      "name": "curriculum",
+      "aliases": []
+    }
+  }, {
+    "name": "context.hrefIn",
+    "moreCommaSeparatedValuesProduceASmallerSubset": false,
+    "aliases": [],
+    "correspondingSingleValuedProperty": {
+      "name": "context.href",
+      "aliases": []
+    }
+  }, {
+    "name": "keys",
+    "moreCommaSeparatedValuesProduceASmallerSubset": false,
+    "aliases": ["keyIn"],
+    "correspondingSingleValuedProperty": {
+      "name": "key",
+      "aliases": []
+    }
+  }, {
+    "name": "observers",
+    "moreCommaSeparatedValuesProduceASmallerSubset": false,
+    "aliases": []
+  }, {
+    "name": "creators",
+    "moreCommaSeparatedValuesProduceASmallerSubset": false,
+    "aliases": []
+  }, {
+    "name": "rootWithCreatorContains",
+    "moreCommaSeparatedValuesProduceASmallerSubset": false,
+    "aliases": []
+  }, {
+    "name": "rootWithContextContains",
+    "moreCommaSeparatedValuesProduceASmallerSubset": false,
+    "aliases": []
+  }, {
+    "name": "goals",
+    "moreCommaSeparatedValuesProduceASmallerSubset": false,
+    "aliases": []
+  }, {
+    "name": "activityplanContextContains",
+    "moreCommaSeparatedValuesProduceASmallerSubset": false,
+    "aliases": []
+  }]
+}
 
 
 const someGuid = 'c005ac30-1b04-46f9-8fb0-df622b27e793';
@@ -689,6 +741,7 @@ function assertsCurrentPathMatchesRawResourcesMultiValue(mode, expectedReturn) {
       mode,
     ), expectedReturn
   );
+
 }
 
 function assertsCurrentPathNotMatchingRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(mode, expectedReturn) {
@@ -927,6 +980,39 @@ function assertsCurrentPathMatchesRawResourcesMultiValueWithOptionMoreCommaSepar
   );
 }
 
+
+function assertsActivityplansApi(mode, expectedReturn) {
+// These cases deal with '$$meta.deleted=any' at the right side, which is currently used instead of the more logic
+// but currently not implemented '$$meta.deletedIn=true,false'.
+// Once sri4node is adapted to this, these testcases should be adapted or might be removed.
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/llinkid/activityplanning/activityplans/?context.href=%2Fsam%2Forganisationalunits%2Fc61d3a60-3656-4f13-b6f1-af8f744d0d4d&limit=5000',
+      ["/llinkid/activityplanning/activityplans?context.hrefIn=/sam/organisationalunits/c61d3a60-3656-4f13-b6f1-af8f744d0d4d&$$meta.deleted=any",
+        "/llinkid/activityplanning/activityplans/activities?rootWithContextContains=/sam/organisationalunits/c61d3a60-3656-4f13-b6f1-af8f744d0d4d&$$meta.deleted=any"],
+      mode,
+    ), expectedReturn
+  );
+
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/llinkid/activityplanning/activityplans/activities/?rootWithContextContains=%2Fsam%2Forganisationalunits%2Fc61d3a60-3656-4f13-b6f1-af8f744d0d4d&limit=5000',
+      ["/llinkid/activityplanning/activityplans?context.hrefIn=/sam/organisationalunits/c61d3a60-3656-4f13-b6f1-af8f744d0d4d&$$meta.deleted=any",
+        "/llinkid/activityplanning/activityplans/activities?rootWithContextContains=/sam/organisationalunits/c61d3a60-3656-4f13-b6f1-af8f744d0d4d&$$meta.deleted=any"],
+      mode,
+    ), expectedReturn
+  );
+
+  assert.equal(
+    isPathAllowedBasedOnResourcesRaw(
+      '/llinkid/activityplanning/activityplans/activities/?rootWithContextContains=%2Fsam%2Forganisationalunits%2Fc61d3a60-3656-4f13-b6f1-af8f744d0d4d&limit=5000&keyOffset=2020-08-28T12%3A00%3A09.632948Z,d325ae14-5b6e-4445-b58f-cbf23067299daf8f744d0d4d&limit=5000&keyOffset=2020-08-28T12%3A00%3A09.632948Z,d325ae14-5b6e-4445-b58f-cbf23067299d',
+      ["/llinkid/activityplanning/activityplans?context.hrefIn=/sam/organisationalunits/c61d3a60-3656-4f13-b6f1-af8f744d0d4d&$$meta.deleted=any",
+        "/llinkid/activityplanning/activityplans/activities?rootWithContextContains=/sam/organisationalunits/c61d3a60-3656-4f13-b6f1-af8f744d0d4d&$$meta.deleted=any"],
+      mode,
+    ), expectedReturn
+  );
+
+}
 
 
 describe('stripQueryParamsFromParsedUrl(...)', function () {
@@ -1310,6 +1396,10 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is AGGRES
   });
   it('should return true if currentPath (without special query params) multivalue parameter is a subset of hrefs parameter in resources raw (with OptionMoreCommaSeparatedValuesProduceASmallerSubset true)', function () {
     assertsCurrentPathMatchesRawResourcesMultiValueWithOptionMoreCommaSeparatedValuesProduceASmallerSubset(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset, true)
+  });
+
+  it('should return true for some real world activityplans-api queries', function () {
+    assertsActivityplansApi(optionsActivityplansApi, true);
   });
 
 });
