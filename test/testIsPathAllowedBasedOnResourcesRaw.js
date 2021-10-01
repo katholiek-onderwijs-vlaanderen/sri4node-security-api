@@ -106,6 +106,7 @@ const optionsActivityplansApi = {
   }]
 }
 
+addSriDefaultsToOptimisationOptions(optionsActivityplansApi);
 
 const someGuid = 'c005ac30-1b04-46f9-8fb0-df622b27e793';
 

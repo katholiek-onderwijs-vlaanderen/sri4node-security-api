@@ -210,12 +210,6 @@ function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, optimisat
     replaceAliases(urlSearchParams2);
   }
 
-  // add a default value for '$$meta.deleted' if occurs at right and not present left
-  // in the future this code can be removed once sri4node provides this functionality
-  if (urlSearchParams2.has('$$meta.deleted') && !urlSearchParams1.has('$$meta.deleted')) {
-    urlSearchParams1.set('$$meta.deleted', 'false');
-  }
-
   const leftEntries = [...urlSearchParams1.entries()];
   const rightEntries = [...urlSearchParams2.entries()];
 
@@ -251,7 +245,11 @@ function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, optimisat
                   if (value === 'any') {
                     return true; // if right is 'any', the result set produced left will always be a subset
                   } else {
-                  return (urlSearchParams1.get(key) === value);
+                    if (urlSearchParams1.has(key)) {
+                      return (urlSearchParams1.get(key) === value);
+                    } else {
+                      return (value === false); // if '$$meta.deleted' is not specified, the default is '$$meta.deleted=false'
+                    }
                   }
                 } else {
                   return (urlSearchParams1.has(key) && urlSearchParams1.get(key) === value);
