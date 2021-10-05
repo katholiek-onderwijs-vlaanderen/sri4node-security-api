@@ -261,8 +261,9 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         throw new SriError({ status: 403, sriRequestID: sriRequest.id })
     }
 
-    async function doSecurityRequest(batch) {
+    async function doSecurityRequest(batch, sriRequest) {
         try {
+            const start = new Date();
             const res = await memPut('/security/query/batch', batch);
             if (res.some(r => (r.status != 200))) {
                 debug('sri-security', '_______________________________________________________________')
@@ -272,6 +273,9 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 debug('sri-security', '_______________________________________________________________')
                 throw 'unexpected.status.in.batch.result'
             }
+            const fetchTime = new Date() - start;
+            sriRequest.sriSecurityTimeToFetchRawResources = sriRequest.sriSecurityTimeToFetchRawResources !== undefined ? 
+                            sriRequest.sriSecurityTimeToFetchRawResources + fetchTime : fetchTime;
             return res.map(r => r.body)
         } catch (err) {
             error('____________________________ E R R O R ____________________________________________________')
@@ -288,15 +292,13 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         + '&person=' + person;
     }
 
-    async function requestRawResourcesFromSecurityServer(component, operation, person) {
+    async function requestRawResourcesFromSecurityServer(component, operation, sriRequest) {
+        const person = getPersonFromSriRequest(sriRequest);
         const url = composeRawResourcesUrl(component, operation, person);
         // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
         // (needs change in security API)
 
-        const start = new Date();
-
-        const [resourcesRaw] = await doSecurityRequest([{ href: url, verb: 'GET' }]);
-        debug('sri-security', 'time to fetch raw resources=' + (new Date() - start) + ' ms.')
+        const [resourcesRaw] = await doSecurityRequest([{ href: url, verb: 'GET' }], sriRequest);
         return resourcesRaw;
     }
 
@@ -316,7 +318,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         if (memResourcesRawInternal !== null) {
             resourcesRaw = await memResourcesRawInternal(sriRequest, tx, component, operation, getPersonFromSriRequest(sriRequest));
         } else {
-            resourcesRaw = await requestRawResourcesFromSecurityServer(component, operation, getPersonFromSriRequest(sriRequest));
+            resourcesRaw = await requestRawResourcesFromSecurityServer(component, operation, sriRequest);
         }
         let relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType))
 
@@ -324,13 +326,11 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         const superUserResourceInclDeleted = resourceType + '?$$meta.deleted=any';
         if (sriRequest.containsDeleted) {
             if (relevantRawResources.includes(superUserResourceInclDeleted)) {
-                debug('sri-security', 'super user access')
                 sriRequest.securityHandling='super_user';
                 return true
             }
         } else {
             if (relevantRawResources.includes(superUserResource) || relevantRawResources.includes(superUserResourceInclDeleted)) {
-                debug('sri-security', 'super user access')
                 sriRequest.securityHandling='super_user';
                 return true
             }
@@ -389,7 +389,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 + (resource !== undefined ? '&resource=' + resource : '');
             return { href: url, verb: 'GET' }
         })
-        const result = await doSecurityRequest(batch)
+        const result = await doSecurityRequest(batch, sriRequest)
 
         const notAllowedIndices = []
         result.forEach((e, idx) => {
@@ -414,7 +414,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 return { href: url, verb: 'GET' }
             })
 
-            const rawResult = await doSecurityRequest(rawBatch)
+            const rawResult = await doSecurityRequest(rawBatch, sriRequest)
 
             if (rawResult.some((e, idx) => {
                 let rawRequired = toCheck[idx].type
@@ -444,7 +444,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                             });
 
         const rawMap = new Map(_.zip( componentAbilitiesNeeded.map(({ component, ability }) => `${component}!=!${ability}`)
-                                    , await doSecurityRequest(rawBatch)));
+                                    , await doSecurityRequest(rawBatch, sriRequest)));
 
         if (!await pEvery(elements, async ({ component, resource, ability }) => {
             const rawResourcesList = rawMap.get(`${component}!=!${ability}`);
