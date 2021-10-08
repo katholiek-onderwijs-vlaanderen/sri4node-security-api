@@ -25,10 +25,11 @@ const { getPersonFromSriRequest, parseResource, SriError } = require('sri4node/j
  * @param {PluginConfig} pluginConfig
  * @returns an object with some methods as used by sri4node's plugin mechanism
  */
-module.exports = function (pluginConfig) {
-  let security;
-  let pglistener;
-  return {
+
+let security;
+let pglistener;
+
+module.exports = {
     init: function (sriConfig, db) {
       pluginConfig = sriConfig.composedSecurityPluginConfig;
       pluginConfig.oauthValve = pluginConfig.initOauthValve(sriConfig);
@@ -39,7 +40,9 @@ module.exports = function (pluginConfig) {
         pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches);
       }
 
-      utils.addSriDefaultsToOptimisationOptions(pluginConfig.optimisation);
+      if (pluginConfig.optimisation !== undefined) {
+        utils.addSriDefaultsToOptimisationOptions(pluginConfig.optimisation);
+      }
     },
 
     setMemResourcesRawInternal: (func) => {
@@ -74,7 +77,7 @@ module.exports = function (pluginConfig) {
       }
 
       const optimisationDebugEnabled = (sriRequest, ability) => {
-        if ((parseResource(sriRequest.originalUrl).query !== null) && (ability==='read') && (pluginConfig.optimisation.mode === 'DEBUG')) {
+        if ((parseResource(sriRequest.originalUrl).query !== null) && (ability==='read') && pluginConfig.optimisation && (pluginConfig.optimisation.mode === 'DEBUG')) {
           return true;
         }
       }
@@ -128,7 +131,7 @@ module.exports = function (pluginConfig) {
           } else {
             try {
               await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, true)
-              if (pluginConfig.optimisation.mode === 'DEBUG') {
+              if (pluginConfig.optimisation && pluginConfig.optimisation.mode === 'DEBUG') {
                 await handleDebugOptimisation(sriRequest, ability, true);
               } 
             } catch(err) {
@@ -231,4 +234,3 @@ module.exports = function (pluginConfig) {
     // NOT intented for public usage, only used by beveiliging_nodejs
     handleNotAllowed: function (sriRequest) { return security.handleNotAllowed(sriRequest) }
   }
-}
