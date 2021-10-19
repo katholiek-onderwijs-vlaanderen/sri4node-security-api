@@ -337,7 +337,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         }
 
         // Deal with permalinks in relevantRawResources. As they don't need to be checked against the database,
-        // we can handle them here already: exclude the keys of the permalinks from keysToCheck and fiter permalinks 
+        // we can handle them here already: exclude the keys of the permalinks from keysToCheck and filter permalinks 
         // out of relevantRawResources.
         const allowedPermalinkKeys = [];
         relevantRawResources = relevantRawResources.filter(rawUrl => {
@@ -346,6 +346,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 allowedPermalinkKeys.push(permalinkKey);
                 return false; // only keep query resources in relevantRawResources
             }
+            sriRequest.securityHandling='permalink_in_raw_list';
             return true;
         });
 
