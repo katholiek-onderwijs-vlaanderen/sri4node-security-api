@@ -102,6 +102,8 @@ const specialSriQueryParams = new Set([
   'expand',
   '$$includeCount',
   'modifiedSince',
+  'descending',
+  'orderBy',
 ])
 
 
