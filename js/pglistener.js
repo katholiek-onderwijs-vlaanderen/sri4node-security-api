@@ -70,13 +70,14 @@ exports = module.exports = function (db, funToRunAtNotification) {
         });
     }
 
-
-    function sendNotification() {
-        connection.none('NOTIFY ${channel:name}, ${payload}', { channel, payload: msg })
-            .catch(err => {  // unlikely to ever happen
-                error('sri4node-security-api | pglistener - failed to Notify:');
-                error(err);
-            })
+    async function sendNotification() {
+        try {
+            await connection.none('NOTIFY ${channel:name}, ${payload}', { channel, payload: msg })
+            debug('sri4node-security-api', 'pglistener - DONE');
+        } catch(err) { // unlikely to ever happen
+            error('sri4node-security-api | pglistener - failed to Notify:');
+            error(err);
+        }
     }
 
     reconnect() // = same as reconnect(0, 1)

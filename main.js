@@ -199,9 +199,9 @@ module.exports = function (pluginConfig) {
 
         if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
              pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
-            resource.afterInsert.push(() => pglistener.sendNotification());
-            resource.afterUpdate.push(() => pglistener.sendNotification());
-            resource.afterDelete.push(() => pglistener.sendNotification());
+            resource.afterInsert.push(pglistener.sendNotification);
+            resource.afterUpdate.push(pglistener.sendNotification);
+            resource.afterDelete.push(pglistener.sendNotification);
         }
       })
       sriConfig.beforePhase.unshift(security.beforePhaseHook);
