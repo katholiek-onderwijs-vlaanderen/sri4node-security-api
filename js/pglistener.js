@@ -73,9 +73,9 @@ exports = module.exports = function (db, funToRunAtNotification) {
     async function sendNotification() {
         try {
             await connection.none('NOTIFY ${channel:name}, ${payload}', { channel, payload: msg })
-            debug('sri4node-security-api', 'pglistener - DONE');
+            debug('sri-security', 'pglistener - DONE');
         } catch(err) { // unlikely to ever happen
-            error('sri4node-security-api | pglistener - failed to Notify:');
+            error('sri-security | pglistener - failed to Notify:');
             error(err);
         }
     }
