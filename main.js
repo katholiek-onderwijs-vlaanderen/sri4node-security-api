@@ -89,7 +89,7 @@ module.exports = function (pluginConfig) {
             resourcesRaw, { ...pluginConfig.optimisation, mode: 'HIGH' });
           const optimisationResultWithAggressive = utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl,
             resourcesRaw, { ...pluginConfig.optimisation, mode: 'AGGRESSIVE' });
-          const urlTemplate = getUrlTemplate(sriRequest);
+          const urlTemplate = getUrlTemplate(sriRequest.originalUrl);
 
           const json = {
             url: sriRequest.originalUrl,
