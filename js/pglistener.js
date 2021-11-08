@@ -80,13 +80,14 @@ exports = module.exports = function (db, funToRunAtNotification) {
         }
     }
 
-    reconnect() // = same as reconnect(0, 1)
+    reconnect(5000, 10)
         .then(obj => {
             debug('sri-security', 'pglistener - successful initial connection');
         })
         .catch(err => {
             error('sri-security | pglistener - failed initial connection:');
             error(err);
+            process.exit(); // exiting the process
         });
 
     return {
