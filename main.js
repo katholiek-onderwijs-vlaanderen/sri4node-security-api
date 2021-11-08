@@ -56,7 +56,7 @@ module.exports = function (pluginConfig) {
       const getUrlTemplate = (url) => {
         const strippedUrl = utils.stripSpecialSriQueryParamsFromParsedUrl(new URL(url, 'https://xyz.com'));
         strippedUrl.searchParams.sort();
-        return strippedUrl.pathname + '/' + [...strippedUrl.searchParams.keys()].map(key => key + '=...').join('&');
+        return strippedUrl.pathname + '?' + [...strippedUrl.searchParams.keys()].map(key => key + '=...').join('&');
       }
 
       const listRequestOptimization = async function(tx, sriRequest) {
