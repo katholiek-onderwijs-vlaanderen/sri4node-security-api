@@ -60,7 +60,7 @@ module.exports = {
       const getUrlTemplate = (url) => {
         const strippedUrl = utils.stripSpecialSriQueryParamsFromParsedUrl(new URL(url, 'https://xyz.com'));
         strippedUrl.searchParams.sort();
-        return strippedUrl.pathname + '/' + [...strippedUrl.searchParams.keys()].map(key => key + '=...').join('&');
+        return strippedUrl.pathname + '?' + [...strippedUrl.searchParams.keys()].map(key => key + '=...').join('&');
       }
 
       const listRequestOptimization = async function(tx, sriRequest) {
@@ -69,6 +69,7 @@ module.exports = {
           if (pr.id === null && pr.query !== null) {
               if (pluginConfig.optimisation.mode !== 'NONE' && pluginConfig.optimisation.mode !== 'DEBUG') {
                   const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.defaultComponent, 'read', sriRequest);
+                  sriRequest.listRequest = true;
                   sriRequest.listRequestAllowedByRawResourcesOptimization =
                       utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl, resourcesRaw, pluginConfig.optimisation);
               }
@@ -92,7 +93,7 @@ module.exports = {
             resourcesRaw, { ...pluginConfig.optimisation, mode: 'HIGH' });
           const optimisationResultWithAggressive = utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl,
             resourcesRaw, { ...pluginConfig.optimisation, mode: 'AGGRESSIVE' });
-          const urlTemplate = getUrlTemplate(sriRequest);
+          const urlTemplate = getUrlTemplate(sriRequest.originalUrl);
 
           const json = {
             url: sriRequest.originalUrl,
@@ -142,15 +143,16 @@ module.exports = {
               throw err;
             }
           }
-          // if no error was thrown, the request is allowed
-          if (!optimisationDebugEnabled(sriRequest, ability)) { // if optimisationDebug is enabled, the request is already logged
+          // if no error was thrown and it is not a batch part (then db evaluation will be a combined query in the before handler)
+          //   ==> the request is allowed
+          if ((sriRequest.isBatchPart !== true) && !optimisationDebugEnabled(sriRequest, ability)) { // if optimisationDebug is enabled, the request is already logged
             const json = {
               url: sriRequest.originalUrl,
               urlTemplate: getUrlTemplate(sriRequest.originalUrl),
-              rawResources: security.composeRawResourcesUrl(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest)),
+              rawResources: security.composeRawResourcesUrl(pluginConfig.defaultComponent, ability, getPersonFromSriRequest(sriRequest)),
               timeToFetchRawResources: sriRequest.sriSecurityTimeToFetchRawResources,
               handling: sriRequest.securityHandling,
-              falseNegative: sriRequest.securityHandling.startsWith('db_check')
+              falseNegative: (sriRequest.listRequest === true) ? sriRequest.securityHandling.startsWith('db_check') : null,
             }
             debug('sri-security', `request allowed: ${JSON.stringify(json)}`);
           }
@@ -201,9 +203,9 @@ module.exports = {
 
         if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
              pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
-            resource.afterInsert.push(() => pglistener.sendNotification());
-            resource.afterUpdate.push(() => pglistener.sendNotification());
-            resource.afterDelete.push(() => pglistener.sendNotification());
+            resource.afterInsert.push(pglistener.sendNotification);
+            resource.afterUpdate.push(pglistener.sendNotification);
+            resource.afterDelete.push(pglistener.sendNotification);
         }
       })
       sriConfig.beforePhase.unshift(security.beforePhaseHook);
