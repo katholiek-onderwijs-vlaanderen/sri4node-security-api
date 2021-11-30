@@ -43,6 +43,13 @@ module.exports = {
       if (pluginConfig.optimisation !== undefined) {
         utils.addSriDefaultsToOptimisationOptions(pluginConfig.optimisation);
       }
+
+      // set default to no optimisation
+      if (pluginConfig.optimisation === undefined) {
+        pluginConfig.optimisation = { mode: 'NONE' }
+      }
+
+
     },
 
     setMemResourcesRawInternal: (func) => {
