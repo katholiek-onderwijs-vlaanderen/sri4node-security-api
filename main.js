@@ -38,7 +38,12 @@ module.exports = function (pluginConfig) {
         pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches);
       }
 
-      utils.addSriDefaultsToOptimisationOptions(pluginConfig.optimisation);
+      if (pluginConfig.optimisation === undefined) {
+        // set default to no optimisation
+        pluginConfig.optimisation = { mode: 'NONE' }
+      } else {
+        utils.addSriDefaultsToOptimisationOptions(pluginConfig.optimisation);
+      }
     },
 
     setMemResourcesRawInternal: (func) => {
