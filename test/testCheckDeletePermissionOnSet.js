@@ -7,7 +7,7 @@ var it = require('mocha').it;
 
 var configuration = {
   USER: '<never commit passwords in a source code repo>',
-  PASSWORD: '***REMOVED***',
+  PASSWORD: '<never commit passwords in a source code repo>',
   SECURITY_API_HOST: 'https://testapi.vsko.be'
 };
 
