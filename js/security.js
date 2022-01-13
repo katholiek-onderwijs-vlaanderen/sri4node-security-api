@@ -5,16 +5,23 @@ const pMap = require('p-map');
 const pEvery = require('p-every');
 const memoized = require('mem');
 
-
-const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey, parseResource } = require('sri4node/js/common.js')
-
 const SriClientError = require('@kathondvla/sri-client/sri-client-error');
 
 var utils = require('./utils');
 
-exports = module.exports = function (pluginConfig, sriConfig) {
+exports = module.exports =
+/**
+ * 
+ * @param {*} pluginConfig 
+ * @param {*} sriConfig 
+ * @param {*} sri4node the current sri4node instance as passed into the install function by sri4node
+ * @returns 
+ */
+function (pluginConfig, sriConfig, sri4node) {
 
     'use strict';
+
+    const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey, parseResource } = sri4node;
 
     const sri4nodeUtils = sriConfig.utils
 
