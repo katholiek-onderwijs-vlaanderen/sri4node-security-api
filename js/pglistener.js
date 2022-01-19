@@ -1,9 +1,9 @@
 // Based on following code:
 // https://github.com/vitaly-t/pg-promise/wiki/Robust-Listeners
 
-const { debug, error } = require('sri4node/js/common.js')
 
-exports = module.exports = function (db, funToRunAtNotification) {
+exports = module.exports = function (db, funToRunAtNotification, sri4node) {
+    const { debug, error } = sri4node;
     const channel = 'sri4node-security-api'; // LISTEN - channel name
     const msg = 'clearMem';
     let connection; // global connection for permanent event listeners
