@@ -41,7 +41,7 @@ function init(sriConfig, db, sri4node) {
   security = require('./js/security')(pluginConfig, sriConfig, sri4node);
   if (pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
     pluginConfig.securityDbCheckMethod === 'CacheRawResults') {
-    pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches);
+    pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches, sri4node);
   }
 
   if (pluginConfig.optimisation !== undefined) {

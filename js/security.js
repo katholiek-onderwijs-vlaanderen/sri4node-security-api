@@ -21,7 +21,8 @@ function (pluginConfig, sriConfig, sri4node) {
 
     'use strict';
 
-    const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey, parseResource } = sri4node;
+    const { SriError, debug, error } = sri4node;
+    const { getPersonFromSriRequest, parseResource, typeToMapping, tableFromMapping, urlToTypeAndKey } = sri4node.internalUtils;
 
     const sri4nodeUtils = sriConfig.utils
 
