@@ -198,7 +198,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 //  => check every time with one composed query at the db which keys don't match the raw urls.
                 query.sql(`SELECT distinct ck.key FROM
                        (VALUES ${allKeys.map(k => `('${k}'::uuid)`).join()}) as ck (key)
-                       LEFT JOIN (`);
+                       WHERE NOT EXISTS `);
 
                 await pMap(Object.keys(subMap), async (u, idx) => {
                     const rawUrl = urlModule.parse(u, true);
@@ -208,9 +208,10 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                     try {
                         const sub_query = sri4nodeUtils.prepareSQL('sri4node-security-api-sub-check');
                         await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, sub_query);
+                        sub_query.sql(` AND "${tableFromMapping(mapping)}"."key" = ck.key`);
 
                         if (idx > 0) {
-                            query.sql('\nUNION ALL\n');
+                            query.sql('\nAND NOT EXISTS\n');
                         }
                         query.sql('(').appendQueryObject(sub_query).sql(')');
                     } catch (err) {
@@ -219,10 +220,6 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                         console.warn('Check the configuration at the security server!');
                     }
                 }, { concurrency: 1 })
-
-                query.sql(`) sriq 
-                       ON sriq.key = ck.key
-                       WHERE sriq.key IS NULL;`);
 
                 const start = new Date();
                 keysNotMatched = (await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key);
