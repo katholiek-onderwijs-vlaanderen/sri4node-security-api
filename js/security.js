@@ -193,36 +193,51 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 const rawKeySet = union(rawKeySetList);
                 keysNotMatched = allKeys.filter(k => !rawKeySet.has(k));
             } else {
-                const query = sri4nodeUtils.prepareSQL('sri4node-security-api-composed-check');
-                // Default no caching raw urls in memory = backwards compatible.
-                //  => check every time with one composed query at the db which keys don't match the raw urls.
-                query.sql(`SELECT distinct ck.key FROM
-                       (VALUES ${allKeys.map(k => `('${k}'::uuid)`).join()}) as ck (key)
+                const start = new Date();
+                const promises = [];
+                console.time('setup-security-queries');
+                // split up the security query in chunks of 2000 keys for better performance
+                // there should be a way to fix this in the db but for now we adopt this workaround
+                _.chunk(allKeys, 2000).forEach((chunk) => {
+                    promises.push((async (someKeys) => {
+                        const query = sri4nodeUtils.prepareSQL('sri4node-security-api-composed-check');
+                        // Default no caching raw urls in memory = backwards compatible.
+                        //  => check every time with one composed query at the db which keys don't match the raw urls.
+                        query.sql(`SELECT distinct ck.key FROM
+                       (VALUES ${someKeys.map(k => `('${k}'::uuid)`).join()}) as ck (key)
                        WHERE NOT EXISTS `);
 
-                await pMap(Object.keys(subMap), async (u, idx) => {
-                    const rawUrl = urlModule.parse(u, true);
-                    const mapping = typeToMapping(rawUrl.pathname);
-                    const parameters = _.cloneDeep(rawUrl.query);
-                    parameters.expand = 'none';
-                    try {
-                        const sub_query = sri4nodeUtils.prepareSQL('sri4node-security-api-sub-check');
-                        await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, sub_query);
-                        sub_query.sql(` AND "${tableFromMapping(mapping)}"."key" = ck.key`);
+                        await pMap(Object.keys(subMap), async (u, idx) => {
+                            const rawUrl = urlModule.parse(u, true);
+                            const mapping = typeToMapping(rawUrl.pathname);
+                            const parameters = _.cloneDeep(rawUrl.query);
+                            parameters.expand = 'none';
+                            try {
+                                const sub_query = sri4nodeUtils.prepareSQL('sri4node-security-api-sub-check');
+                                await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, sub_query);
+                                sub_query.sql(` AND "${tableFromMapping(mapping)}"."key" = ck.key`);
 
-                        if (idx > 0) {
-                            query.sql('\nAND NOT EXISTS\n');
+                                if (idx > 0) {
+                                    query.sql('\nAND NOT EXISTS\n');
+                                }
+                                query.sql('(').appendQueryObject(sub_query).sql(')');
+                            } catch (err) {
+                                console.warn(`IGNORING erroneous raw resource received from security server: ${u}:`);
+                                console.warn(JSON.stringify(err, null, 2));
+                                console.warn('Check the configuration at the security server!');
+                            }
+                        }, { concurrency: 1 })
+
+                        const notmatched = (await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key);
+                        if (keysNotMatched) {
+                            keysNotMatched.push(notmatched);
+                        } else {
+                            keysNotMatched = notmatched;
                         }
-                        query.sql('(').appendQueryObject(sub_query).sql(')');
-                    } catch (err) {
-                        console.warn(`IGNORING erroneous raw resource received from security server: ${u}:`);
-                        console.warn(JSON.stringify(err, null, 2));
-                        console.warn('Check the configuration at the security server!');
-                    }
-                }, { concurrency: 1 })
-
-                const start = new Date();
-                keysNotMatched = (await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key);
+                    })(chunk))
+                });
+                console.timeEnd('setup-security-queries');
+                await Promise.all(promises);
                 debug('sri4node-security-api | security db check, securitydb_time=' + (new Date() - start) + ' ms.')
             }
 
