@@ -1,28 +1,19 @@
-const utils = require('./js/utils');
+const utils = require('./utils');
 
-/**
- * @typedef {import("./js/utils").QueryParam} QueryParam
- *
- * @typedef {import("./js/utils").MultiValuedPropertyConfig} MultiValuedPropertyConfig
- *
- * @typedef {import("./js/utils").OptimisationOptions} OptimisationOptions
- *
- * @callback InitOauthValveFn
- *  @param {object} sriConfig
- *  @param {object} db
- *  @returns {object}
- *
- * @typedef {object} PluginConfig
- *  @property {String} defaultComponent
- *  @property {InitOauthValveFn} initOauthValve
- *  @property {'CacheRawListResults' | 'CacheRawResults' } securityDbCheckMethod
- *  @property {OptimisationOptions} optimisation
- */
+import { securityHandler } from './security';
+import { TSriConfig } from 'sri4node';
+import { TOptimisationOptions } from './utils';
 
-/**
- * @param {PluginConfig} pluginConfig
- * @returns an object with some methods as used by sri4node's plugin mechanism
- */
+
+type TInitOauthValveFn = (sriConfig:TSriConfig, db:any) => Record<string, any>;
+
+type TPluginConfig = {
+   defaultComponent: string,
+   initOauthValve: TInitOauthValveFn,
+   securityDbCheckMethod: 'CacheRawListResults' | 'CacheRawResults',
+   optimisation: TOptimisationOptions,
+ }
+
 
 let security;
 let pglistener;
@@ -30,7 +21,7 @@ let pglistener;
 let debug, error, SriError, getPersonFromSriRequest, parseResource;
 
 
-function init(pluginConfig, db, sri4node, pluginConfig) {
+function init(sriConfig:TSriConfig, db, sri4node, pluginConfig:TPluginConfig) {
   // set some util functions from sri4node that we need to the proper values from the current sri4node instance
   ({ debug, error, SriError } = sri4node);
   ({ getPersonFromSriRequest, parseResource } = sri4node.internalUtils);
@@ -40,10 +31,10 @@ function init(pluginConfig, db, sri4node, pluginConfig) {
     oauthValve: pluginConfig.initOauthValve(sriConfig, db),
   }
 
-  security = require('./js/security')(securityConfig, sriConfig, sri4node);
+  security = securityHandler(securityConfig, sriConfig, sri4node);
   if (pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
     pluginConfig.securityDbCheckMethod === 'CacheRawResults') {
-    pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches, sri4node);
+    pglistener = require('./pglistener')(db, security.clearRawUrlCaches, sri4node);
   }
 
   if (pluginConfig.optimisation !== undefined) {
@@ -64,11 +55,11 @@ function init(pluginConfig, db, sri4node, pluginConfig) {
  * @param {*} pluginConfig the config of the security plugin
  * @returns a plugin object to be put in the plugins section of the SriConfig object
  */
-module.exports = function(sri4node, pluginConfig) {
+const sri4nodeSecurityApiPluginFactory = (sri4node, pluginConfig) => {
   return {
     install: async function (sriConfig, db) {
 
-      init(sriConfig, db, sri4node);
+      init(sriConfig, db, sri4node, pluginConfig);
 
       // an old and error prone optimisation mechanism that would try tocombine
       // raw resources in order to have less raw resources urls
@@ -136,7 +127,7 @@ module.exports = function(sri4node, pluginConfig) {
         }
       }
 
-      let check = async function (tx, sriRequest, elements, ability) {
+      let check = async function (tx, sriRequest, elements, ability):Promise<boolean> {
         // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
         try {
           if (pluginConfig.defaultComponent === '/security/components/security-api'
@@ -191,6 +182,7 @@ module.exports = function(sri4node, pluginConfig) {
           }
           throw err;
         }
+        return true;
       }
 
       const checkForSecurityBypass = async () => {
@@ -349,4 +341,8 @@ module.exports = function(sri4node, pluginConfig) {
      */
     handleNotAllowed: function (sriRequest) { return security.handleNotAllowed(sriRequest) }
   }
+};
+
+export {
+  sri4nodeSecurityApiPluginFactory,
 };

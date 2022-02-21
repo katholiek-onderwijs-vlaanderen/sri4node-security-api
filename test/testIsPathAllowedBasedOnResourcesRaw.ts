@@ -1,11 +1,12 @@
 // const assert = require('assert');
-const { assert } = require('chai');
+import { assert } from 'chai';
 
 // const nock = require('nock');
 // const sri4nodeUtilsMock = require('./sri4nodeUtilsMock');
 
-const { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl, 
-        searchParamsProduceSubset, addSriDefaultsToOptimisationOptions } = require('../js/utils')
+import { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl,
+        searchParamsProduceSubset, addSriDefaultsToOptimisationOptions,
+        TOptimisationOptions } from '../src/utils';
 
 /**
  * 
@@ -27,20 +28,20 @@ function average(array, nrOfDecimals) {
  * @param {Array<Integer>} param0
  * @returns the input traslated to milliseconds
  */
- function hrtimeToMilliseconds([seconds, nanoseconds]) {
+ function hrtimeToMilliseconds([seconds, nanoseconds]:[number, number]) {
   return seconds * 1000 + nanoseconds / 1000000;
 }
 
-let timesUrlSearchParams = [];
-let timesAggressive = [];
-function isPathAllowedBasedOnResourcesRawTimed(currentPath, rawPaths, optimisationOptions, ...args) {
+let timesUrlSearchParams:number[] = [];
+let timesAggressive:number[] = [];
+function isPathAllowedBasedOnResourcesRawTimed(currentPath, rawPaths, optimisationOptions) {
   const hrStart2 = process.hrtime();
   const x = new URL(currentPath, 'https://domain.com').searchParams.toString();
   const hrElapsed2 = process.hrtime(hrStart2);
   timesUrlSearchParams.push(hrtimeToMilliseconds(hrElapsed2));
 
   const hrStart = process.hrtime();
-  const retVal = isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOptions, ...args);
+  const retVal = isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOptions);
   const hrElapsed = process.hrtime(hrStart);
   if (optimisationOptions.mode === 'AGGRESSIVE') {
     timesAggressive.push(hrtimeToMilliseconds(hrElapsed));
@@ -50,13 +51,13 @@ function isPathAllowedBasedOnResourcesRawTimed(currentPath, rawPaths, optimisati
 
 const optionsOptimisationModeNone = { mode: 'NONE' };
 const optionsOptimisationModeNormal = { mode: 'NORMAL' };
-const optionsOptimisationModeHigh = {
+const optionsOptimisationModeHigh:TOptimisationOptions = {
   mode: 'HIGH',
   queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
 };
 addSriDefaultsToOptimisationOptions(optionsOptimisationModeHigh);
 
-const optionsOptimisationModeAggressive = {
+const optionsOptimisationModeAggressive:TOptimisationOptions = {
   mode: 'AGGRESSIVE',
   queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
   multiValuedPropertyConfig: [
@@ -80,7 +81,7 @@ const optionsOptimisationModeAggressive = {
 };
 addSriDefaultsToOptimisationOptions(optionsOptimisationModeAggressive);
 
-const optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset = {
+const optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset:TOptimisationOptions = {
     mode: 'AGGRESSIVE',
     queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
     multiValuedPropertyConfig: [
@@ -93,7 +94,7 @@ const optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmall
 addSriDefaultsToOptimisationOptions(optionsOptimisationModeAggressiveWithMoreCommaSeparatedValuesProduceASmallerSubset);
 
 
-const optionsActivityplansApi = {
+const optionsActivityplansApi:TOptimisationOptions = {
   mode: 'AGGRESSIVE',
   queryParamsThatNotExclusivelyLimitTheResultSet: [],
   "multiValuedPropertyConfig": [{
@@ -1122,7 +1123,7 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
     queryParamsThatNotExclusivelyLimitTheResultSet: [ 'nonLimitingQueryParam' ]
   }
 
-  before(function () {});
+  // before(function () {});
 
   it('should return true if left has all or more params than right', function () {
     assert.isTrue(
@@ -1271,9 +1272,9 @@ describe('searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, queryPar
 describe('isPathAllowedBasedOnResourcesRawTimed(...)', function () {
   'use strict';
 
-  before(function () {
+  // before(function () {
 
-  });
+  // });
 
   it('should throw an exception if config object not properly formatted', function () {
     assert.Throw(

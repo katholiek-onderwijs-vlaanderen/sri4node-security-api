@@ -28,11 +28,11 @@ module.exports = function (validKeys) {
       return true;
     },
     executeSQL: async function (database, query) {
-      var key;
-      var result = {
+      let key;
+      let result = {
         rows: []
       };
-      var foundKeys = query.keys.filter((filteredKey) => {
+      const foundKeys = query.keys.filter((filteredKey) => {
         return validKeys.indexOf(filteredKey) !== -1;
       });
       for (key in foundKeys) {

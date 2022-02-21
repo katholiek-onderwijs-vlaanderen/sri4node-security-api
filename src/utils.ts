@@ -56,6 +56,26 @@ function stripQueryParamsFromParsedUrl(parsedUrl, queryParamsToStrip = new Set()
   return retVal;
 }
 
+type TOptimisationMode = 'NONE' | 'NORMAL' | 'HIGH' | 'AGGRESSIVE';
+ type TQueryParam = {
+   name: string,
+   aliases?: string[],
+ };
+
+type TMultiValuedPropertyConfig = {
+  name: string,
+  aliases?: string[],
+  moreCommaSeparatedValuesProduceASmallerSubset?: boolean,
+  correspondingSingleValuedProperty?: TQueryParam,
+}
+type TOptimisationOptions = {
+  mode: TOptimisationMode,
+  queryParamsThatNotExclusivelyLimitTheResultSet?: string[],
+  multiValuedPropertyConfig?: Array<TMultiValuedPropertyConfig>,
+}
+
+
+
 /**
  * @typedef {'NONE' | 'NORMAL' | 'HIGH' | 'AGGRESSIVE'} OptimisationMode
  *
@@ -108,7 +128,7 @@ const specialSriQueryParams = new Set([
 
 
 
-const addSriDefaultsToOptimisationOptions = (optimisationOptions) => {
+const addSriDefaultsToOptimisationOptions = (optimisationOptions:TOptimisationOptions) => {
     /**
      * Hardcoded list of query params that are known to potentially not purely
      * limit the result set when added to a url
@@ -143,6 +163,9 @@ const addSriDefaultsToOptimisationOptions = (optimisationOptions) => {
 
 /**
  * Will remove 'special' query params from the url
+ * (query params that do not really have a meaning according to the data model
+ * but manipulate how the results are being returned like limit & offset)
+ *
  * @param {URL} parsedUrl
  * @return {URL}
  */
@@ -288,7 +311,7 @@ function searchParamsProduceSubset(urlSearchParams1, urlSearchParams2, optimisat
  * @param {OptimisationOptions} optimisationOptions
  * @returns {Boolean}
  */
-function pathNameIsEqualAndSearchParamsProduceSubset(parsedUrl1, parsedUrl2, optimisationOptions) {
+function pathNameIsEqualAndSearchParamsProduceSubset(parsedUrl1, parsedUrl2, optimisationOptions:TOptimisationOptions) {
   return parsedUrl1.pathname === parsedUrl2.pathname &&
     searchParamsProduceSubset(parsedUrl1.searchParams, parsedUrl2.searchParams, optimisationOptions);
 }
@@ -342,7 +365,7 @@ function pathNameIsEqualAndSearchParamsProduceSubset(parsedUrl1, parsedUrl2, opt
  * 
  * @returns {Boolean}
  */
-function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOptions = {}) {
+function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOptions:TOptimisationOptions = { mode: 'NONE' }) {
   if (optimisationOptions.mode === 'NONE') {
     return false;
   } else if (optimisationOptions.mode === 'NORMAL') {
@@ -364,7 +387,7 @@ function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOpt
     if (Array.from(url.searchParams).length===1 && url.searchParams.get('hrefs')!==null) {
         // This is a special case where sri4node just returns the set of permalinks of the hrefs parameter value
         // --> check if these permalinks are literally in the raw resources.
-        const hrefs = url.searchParams.get('hrefs').split(',');
+        const hrefs = url.searchParams.get('hrefs')?.split(',') || [];
         if (hrefs.every(h => rawPaths.includes(h))) {
             return true;
         }
@@ -379,7 +402,7 @@ function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOpt
   }
 }
 
-module.exports = {
+export {
   getResourceFromUrl,
   getKeyFromPermalink,
   stripQueryParamsFromParsedUrl,
@@ -387,5 +410,9 @@ module.exports = {
   isPathAllowedBasedOnResourcesRaw,
   addSriDefaultsToOptimisationOptions,
   sortSearchParamString,
-  stripSpecialSriQueryParamsFromParsedUrl
+  stripSpecialSriQueryParamsFromParsedUrl,
+  TOptimisationOptions,
+  TMultiValuedPropertyConfig,
+  TQueryParam,
+  TOptimisationMode,
 };
