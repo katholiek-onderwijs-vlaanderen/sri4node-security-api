@@ -10,6 +10,12 @@ const SriClientError = require('@kathondvla/sri-client/sri-client-error');
 
 const utils = require('./utils');
 
+
+const getPersonFromSriRequest = (sriRequest) => {
+  // A userObject of null happens when the user is (not yet) logged in
+  return (sriRequest.userObject ? '/persons/' + sriRequest.userObject.uuid : 'NONE');
+};
+
 /**
  * 
  * @param {*} pluginConfig 
@@ -22,7 +28,8 @@ function securityHandler(pluginConfig:TPluginConfig, sriConfig:TSriConfig, sri4n
   'use strict';
 
   const { SriError, debug, error, utils: sri4nodeUtils } = sri4node;
-  const { getPersonFromSriRequest, parseResource, typeToMapping, tableFromMapping, urlToTypeAndKey } = sri4node.internalUtils;
+  const { parseResource, typeToMapping, urlToTypeAndKey } = sri4node.internalUtils;
+
 
   // const sri4nodeUtils = sriConfig.utils
 
