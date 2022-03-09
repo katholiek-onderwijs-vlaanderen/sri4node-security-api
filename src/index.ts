@@ -18,13 +18,18 @@ type TPluginConfig = {
 let security;
 let pglistener;
 
-let debug, error, SriError, getPersonFromSriRequest, parseResource;
+let debug, error, SriError, parseResource;
+
+const getPersonFromSriRequest = (sriRequest) => {
+  // A userObject of null happens when the user is (not yet) logged in
+  return (sriRequest.userObject ? '/persons/' + sriRequest.userObject.uuid : 'NONE');
+};
 
 
 function init(sriConfig:TSriConfig, db, sri4node, pluginConfig:TPluginConfig) {
   // set some util functions from sri4node that we need to the proper values from the current sri4node instance
   ({ debug, error, SriError } = sri4node);
-  ({ getPersonFromSriRequest, parseResource } = sri4node.internalUtils);
+  ({ parseResource } = sri4node.internalUtils);
 
   const securityConfig = {
     ...pluginConfig,
