@@ -29,7 +29,7 @@ const getPersonFromSriRequest = (sriRequest) => {
 function init(sriConfig:TSriConfig, db, sri4node, pluginConfig:TPluginConfig) {
   // set some util functions from sri4node that we need to the proper values from the current sri4node instance
   ({ debug, error, SriError } = sri4node);
-  ({ parseResource } = sri4node.internalUtils);
+  ({ parseResource } = sri4node.utils);
 
   const securityConfig = {
     ...pluginConfig,

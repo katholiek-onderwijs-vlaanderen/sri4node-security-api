@@ -28,7 +28,7 @@ function securityHandler(pluginConfig:TPluginConfig, sriConfig:TSriConfig, sri4n
   'use strict';
 
   const { SriError, debug, error, utils: sri4nodeUtils } = sri4node;
-  const { parseResource, typeToMapping, urlToTypeAndKey } = sri4node.internalUtils;
+  const { parseResource, typeToMapping, urlToTypeAndKey } = sri4node.utils;
 
 
   // const sri4nodeUtils = sriConfig.utils
