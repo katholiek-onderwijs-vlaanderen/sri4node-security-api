@@ -4,6 +4,9 @@
   "description": "A module to connect sri4node backends to the sri security api (https://github.com/rodrigouroz/sri-security-api)",
   "main": "dist/index",
   "typings": "dist/index",
+  "files": [
+    "/dist"
+  ],
   "scripts": {
     "prepare": "npm run build",
     "prebuild": "npm run clean",
