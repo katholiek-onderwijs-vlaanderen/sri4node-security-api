@@ -11,7 +11,7 @@ Installation is simple using npm:
 
 # Usage
 
-The basic functionality works 'plug and play' (See sri4node doc about plugins: https://github.com/katholiek-onderwijs-vlaanderen/sri4node#plugins ), you only need to pass the relevant security component to use and the express app. 
+The basic functionality works 'plug and play' (See sri4node doc about plugins: https://github.com/katholiek-onderwijs-vlaanderen/sri4node#plugins), you only need to pass the relevant security component to use and the express app.
 
 Initialisation example:
 ```
