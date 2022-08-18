@@ -26,7 +26,7 @@ describe('Get Key From Permalink', function () {
   'use strict';
 
   it('should get the key from a valid permalink', function () {
-    const permalink = '/organisationalunits/relations/a31fb0e8-59c4-4ed2-aad1-c305217b6544';
+    let permalink = '/organisationalunits/relations/a31fb0e8-59c4-4ed2-aad1-c305217b6544';
 
     assert.equal(utils.getKeyFromPermalink(permalink), 'a31fb0e8-59c4-4ed2-aad1-c305217b6544');
 

@@ -13,7 +13,7 @@
     "build": "tsc --project .",
     "clean": "rm -rf ./dist",
     "test": "./node_modules/.bin/mocha --exit --require ts-node/register ./test/test*.ts",
-    "testUtils": "mocha test/testIsPathAllowedBasedOnResourcesRaw.js",
+    "testUtils": "./node_modules/.bin/mocha test/testIsPathAllowedBasedOnResourcesRaw.js",
     "lint": "eslint ./src/*.ts ./test"
   },
   "repository": {
@@ -35,7 +35,7 @@
     "eslint": "^8.10.0",
     "eslint-plugin-import": "^2.25.4",
     "mocha": "^9.2.1",
-    "sri4node": "https://github.com/katholiek-onderwijs-vlaanderen/sri4node.git#66f5039ec8e924f0fcc2bb0f428b696e8aae53ff",
+    "sri4node": "git+ssh://git@github.com/katholiek-onderwijs-vlaanderen/sri4node.git#v2.3.3",
     "ts-node": "^10.5.0",
     "typescript": "^4.6.2"
   },
