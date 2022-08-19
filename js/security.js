@@ -4,6 +4,7 @@ const _ = require('lodash');
 const pMap = require('p-map');
 const pEvery = require('p-every');
 const memoized = require('mem');
+const nodeSriClientFactory = require('@kathondvla/sri-client/node-sri-client');
 
 
 // const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey, parseResource } = require('sri4node/js/common.js')
@@ -40,10 +41,9 @@ var utils = require('./utils');
         headers: pluginConfig.headers,
         username: pluginConfig.auth.user,
         password: pluginConfig.auth.pass,
-        accessToken: pluginConfig.accessToken
-    }
+    };
 
-    const securityApi = require('@kathondvla/sri-client/node-sri-client')(securityConfiguration)
+    const securityApi = nodeSriClientFactory(securityConfiguration);
     const memPut = memoized(securityApi.put.bind(securityApi), { 
         maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
         cacheKey: args => JSON.stringify(args),
@@ -51,14 +51,15 @@ var utils = require('./utils');
 
     const apiConfiguration = {
         baseUrl: pluginConfig.apiBase,
-        headers: pluginConfig.headers,
+        headers: {
+            'Content-type': 'application/json; charset=utf-8',
+            ...pluginConfig.headers,
+        },
         username: pluginConfig.auth.user,
         password: pluginConfig.auth.pass,
-        accessToken: pluginConfig.accessToken
-    }
-    apiConfiguration.headers['Content-type'] = 'application/json; charset=utf-8';
+    };
 
-    const api = require('@kathondvla/sri-client/node-sri-client')(apiConfiguration)
+    const api = nodeSriClientFactory(apiConfiguration)
     const apiPost = memoized(api.post.bind(api), { 
         maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
         cacheKey: args => JSON.stringify(args),
@@ -263,10 +264,10 @@ var utils = require('./utils');
 
 
     function handleNotAllowed(sriRequest) {
-        // Notify the oauthValve that the current request is forbidden. The valve might act
+        // Notify the oauthPlugin that the current request is forbidden. The valve might act
         // according to this information by throwing an SriError object (for example a redirect to a 
         // login page or an error in case of a bad authentication token). 
-        pluginConfig.oauthValve.handleForbiddenBySecurity(sriRequest)
+        pluginConfig.oauthPlugin.handleForbiddenBySecurity(sriRequest)
 
         // If the valve did not throw an SriError, the default response 403 Forbidden is returned.
         throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
@@ -317,7 +318,7 @@ var utils = require('./utils');
             const start = Date.now();
 
             ([resourcesRaw] = await doSecurityRequest([{ href: url, verb: 'GET' }]));
-            debug('sri-security', 'response security, securitytime=' + (Date.now() - start) + ' ms.')
+            debug('sri-security', `[checkPermissionOnElements] ${url} (took ${Date.now() - start} ms)`)
         }
 
         let relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType))

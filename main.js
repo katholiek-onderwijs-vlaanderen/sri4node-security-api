@@ -14,6 +14,13 @@ const util = require('util')
  * @returns 
  */
 module.exports = function (pluginConfig, sri4node) {
+  if (pluginConfig.component === undefined) {
+    throw new Error('security plugin config error: component property is missing');
+  }
+  if (pluginConfig.oauthPlugin === undefined) {
+    throw new Error('security plugin config error: oauthPlugin property is missing');
+  }
+
   let security;
   let pglistener;
   return {
@@ -23,8 +30,6 @@ module.exports = function (pluginConfig, sri4node) {
      * @param {*} db 
      */
     init: function (sriConfig, db) {
-      pluginConfig.oauthValve = pluginConfig.initOauthValve(sriConfig);
-
       security = require('./js/security')(pluginConfig, sriConfig, sri4node);
       if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
             pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
@@ -46,11 +51,11 @@ module.exports = function (pluginConfig, sri4node) {
 
       let check = async function (tx, sriRequest, elements, ability) {
         // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
-        if ( pluginConfig.defaultComponent==='/security/components/security-api' 
+        if ( pluginConfig.component==='/security/components/security-api'
               &&  sriRequest.userObject && sriRequest.userObject.username==='app.security' ) {
           return;
         }
-        await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, false)
+        await security.checkPermissionOnElements(pluginConfig.component, tx, sriRequest, elements, ability, false)
         //console.log('CHECK DONE')
       }
 
@@ -96,7 +101,7 @@ module.exports = function (pluginConfig, sri4node) {
 
     checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component, immediately=false) { 
       if (component === undefined) {
-        component = pluginConfig.defaultComponent
+        component = pluginConfig.component
       }
       if (resourceList.length === 0) {
         console.log('Warning: checkPermissionOnResourceList with empty resourceList makes no sense!')
@@ -107,13 +112,13 @@ module.exports = function (pluginConfig, sri4node) {
     },
     allowedCheck: function (tx, sriRequest, ability, resource, component) {
       if (component === undefined) {
-        component = pluginConfig.defaultComponent
+        component = pluginConfig.component
       }
       return security.allowedCheckBatch(tx, sriRequest, [{component, resource, ability }])
     },
     allowedCheckBatch: function (tx, sriRequest, elements) { return security.allowedCheckBatch(tx, sriRequest, elements) },
     allowedCheckWithRawAndIsPartOfBatch: function (tx, sriRequest, elements) { return security.allowedCheckWithRawAndIsPartOfBatch(tx, sriRequest, elements) },    
-    getOauthValve: () => pluginConfig.oauthValve,
+    getOauthValve: () => pluginConfig.oauthPlugin,
     getBaseUrl: () => security.getBaseUrl(),
 
     // NOT intented for public usage, only used by beveiliging_nodejs

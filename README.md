@@ -14,9 +14,11 @@ This however turned out to be too slow in several scenario's. Therefore several 
 # Configuration
 
 A configuration object needs to be passed, containing at least the relevant security component to use, the express app and a function to initialise the "oauth valve". 
-- `defaultComponent`: mandatory - the security component to use in queries to the security server
+- ~~`defaultComponent`~~: OBSOLETE - the security component to use in queries to the security server
+- `component`: mandatory - the security component to use in queries to the security server
 - `app`: mandatory - the express app used by sri4node, needed to be able to install the "oauth valve"
-- `initOauthValve`: mandatory - function to initialize the "oauth valve"
+- ~~`initOauthValve`~~: OBSOLETE - function to initialize the "oauth valve"
+- `oauthPlugin`: mandatory - oauth plugin instance
 - `securityDbCheckMethod`: optional - an optimalisation for read operations, the resulting key set of raw resources is cached until the next write operation on the database. There are two possibile setting for this optimization:
    - `CacheRawListResults`: cache the key set result of each combined query for a raw resources list
    - `CacheRawResults`: cache the key set result of each individual raw resources query
@@ -52,11 +54,13 @@ A configuration object needs to be passed, containing at least the relevant secu
          - `aliases`:  optional - alias for the corresponding single valued property  
 
 Initialisation example:
-```
+```javascript
 const sri4node = require('sri4node');
+const oauthPlugin = require('some-oauth-plugin')(oauthConfig, sri4node);
 
 const securityConfig = {
-   defaultComponent: '/security/components/persons-api',
+   component: '/security/components/persons-api',
+   oauthPlugin,
    app,
    securityDbCheckMethod: 'CacheRawListResults', 
    optimisation: {
@@ -78,6 +82,7 @@ const securityPlugin = require('@kathondvla/sri4node-security-api-vsko')(securit
 
 const sri4nodeConfig = {
    plugins: [
+      oauthPlugin, // must be listed first, so it will be initialised before securityPlugin is initialized
       securityPlugin
    ],
    ...
