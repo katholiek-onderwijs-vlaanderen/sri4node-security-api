@@ -53,6 +53,8 @@ A configuration object needs to be passed, containing at least the relevant secu
 
 Initialisation example:
 ```
+const sri4node = require('sri4node');
+
 const securityConfig = {
    defaultComponent: '/security/components/persons-api',
    app,
@@ -72,11 +74,11 @@ const securityConfig = {
         },
 };
 
-const securityPlugin = require('@kathondvla/sri4node-security-api-vsko')(securityConfig);
+const securityPlugin = require('@kathondvla/sri4node-security-api-vsko')(securityConfig, sri4node);
 
 const sri4nodeConfig = {
    plugins: [
-      	securityPlugin
+      securityPlugin
    ],
    ...
 }

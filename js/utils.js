@@ -201,6 +201,11 @@ var reduce = function (group, index, array) {
   return !array.some(containsSubSet(group));
 };
 
+const getPersonFromSriRequest = (sriRequest) => {
+  // A userObject of null happens when the user is (not yet) logged in
+  return (sriRequest.userObject ? '/persons/' + sriRequest.userObject.uuid : 'NONE');
+};
+
 module.exports = {
 
   // removes raw groups that are subsets of other raw groups in the same set
@@ -215,5 +220,6 @@ module.exports = {
   contains,
   isPermalink,
   getResourceFromUrl,
-  parseResource
+  parseResource,
+  getPersonFromSriRequest,
 };

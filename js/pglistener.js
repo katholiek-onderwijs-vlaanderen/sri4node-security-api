@@ -1,9 +1,21 @@
 // Based on following code:
 // https://github.com/vitaly-t/pg-promise/wiki/Robust-Listeners
 
-const { debug, error } = require('sri4node/js/common.js')
+/**
+ * @typedef {import('sri4node')} TSri4Node
+ * @typedef {import('sri4node').TSriConfig} TSriConfig
+ * @typedef {import('sri4node').TPluginConfig} TPluginConfig
+ */
 
-exports = module.exports = function (db, funToRunAtNotification) {
+/**
+ * 
+ * @param {*} db 
+ * @param {() => void} funToRunAtNotification 
+ * @param {TSri4Node} sri4node 
+ * @returns 
+ */
+ exports = module.exports = function (db, funToRunAtNotification, sri4node) {
+    const { debug, error } = sri4node;
     const channel = 'sri4node-security-api'; // LISTEN - channel name
     const msg = 'clearMem';
     let connection; // global connection for permanent event listeners
@@ -35,11 +47,12 @@ exports = module.exports = function (db, funToRunAtNotification) {
         removeListeners(e.client);
         reconnect(5000, 10) // retry 10 times, with 5-second intervals
             .then(() => {
-                debug('sri4node-security-api | pglistener - successfully reconnected.');
+                debug('sri-security', 'pglistener - successfully reconnected.');
             })
             .catch(() => {
                 // failed after 10 attempts
-                error('sri4node-security-api | pglistener - Connection Lost Permanently -> exiting.');
+                debug('sri-security', 'pglistener - Connection Lost Permanently -> exiting.');
+                error('pglistener - Connection Lost Permanently -> exiting.');
                 process.exit(); // exiting the process
             });
     }
@@ -81,10 +94,10 @@ exports = module.exports = function (db, funToRunAtNotification) {
 
     reconnect() // = same as reconnect(0, 1)
         .then(obj => {
-            debug('sri4node-security-api | pglistener - successful initial connection');
+            debug('sri-security', 'pglistener - successful initial connection');
         })
         .catch(err => {
-            error('sri4node-security-api | pglistener - failed initial connection:');
+            error('pglistener - failed initial connection:');
             error(err);
         });
 

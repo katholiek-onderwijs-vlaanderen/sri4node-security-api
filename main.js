@@ -1,16 +1,34 @@
+const { SriError } = require('sri4node');
 const util = require('util')
 
-module.exports = function (pluginConfig) {
+/**
+ * @typedef {import('sri4node')} TSri4Node
+ * @typedef {import('sri4node').TSriConfig} TSriConfig
+ * @typedef {import('sri4node').TPluginConfig} TPluginConfig
+ */
+
+/**
+ * 
+ * @param {TPluginConfig} pluginConfig 
+ * @param {TSri4Node} sri4node
+ * @returns 
+ */
+module.exports = function (pluginConfig, sri4node) {
   let security;
   let pglistener;
   return {
+    /**
+     * 
+     * @param {TSriConfig} sriConfig 
+     * @param {*} db 
+     */
     init: function (sriConfig, db) {
       pluginConfig.oauthValve = pluginConfig.initOauthValve(sriConfig);
 
-      security = require('./js/security')(pluginConfig, sriConfig);
+      security = require('./js/security')(pluginConfig, sriConfig, sri4node);
       if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
-            pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {      
-        pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches);
+            pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
+        pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches, sri4node);
       }
     },
 
@@ -52,7 +70,9 @@ module.exports = function (pluginConfig) {
       if (securityBypass === true) {
         check = async function (tx, sriRequest, elements, ability) {
           // in this mode (part of the security backup plan), everything is allowed as long a user is logged in
-          return (sriRequest.userObject!=null && sriRequest.userObject!=undefined);
+          if (sriRequest.userObject === null || sriRequest.userObject === undefined) {
+            throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [ 'User not logged in' ] });
+          }
         }
       }
 

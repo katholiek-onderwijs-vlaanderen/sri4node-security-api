@@ -6,17 +6,34 @@ const pEvery = require('p-every');
 const memoized = require('mem');
 
 
-const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey, parseResource } = require('sri4node/js/common.js')
+// const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey, parseResource } = require('sri4node/js/common.js')
 
 const SriClientError = require('@kathondvla/sri-client/sri-client-error');
 
 var utils = require('./utils');
 
-exports = module.exports = function (pluginConfig, sriConfig) {
+/**
+ * @typedef {import('sri4node')} TSri4Node
+ * @typedef {import('sri4node').TSriConfig} TSriConfig
+ * @typedef {import('sri4node').TPluginConfig} TPluginConfig
+ */
+
+/**
+ * 
+ * @param {TPluginConfig} pluginConfig 
+ * @param {TSriConfig} sriConfig 
+ * @param {TSri4Node} sri4node 
+ * @returns 
+ */
+ exports = module.exports = function (pluginConfig, sriConfig, sri4node) {
 
     'use strict';
 
-    const sri4nodeUtils = sriConfig.utils
+    const { SriError, debug, error } = sri4node;
+    const { typeToMapping, tableFromMapping, urlToTypeAndKey, parseResource } = sri4node.utils;
+
+    const { getPersonFromSriRequest } = utils;
+    const sri4nodeUtils = sri4node.utils;
 
     const securityConfiguration = {
         baseUrl: pluginConfig.securityApiBase,
@@ -72,7 +89,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
 
     const rawUrlToKeySet = async (rawUrlStr, tx) => {
-        debug(`rawUrlToKeySet ${rawUrlStr}`)
+        debug('sri-security', `rawUrlToKeySet ${rawUrlStr}`)
         const rawUrl = urlModule.parse(rawUrlStr, true);
         const mapping = typeToMapping(rawUrl.pathname);
         const parameters = _.cloneDeep(rawUrl.query);
@@ -81,9 +98,9 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             const query = sri4nodeUtils.prepareSQL('sri4node-security-api-check');
             await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, query);
 
-            const start = new Date();
+            const start = Date.now();
             const keySet = new Set((await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key));
-            debug('sri4node-security-api | security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+            debug('sri-security', 'security db check, securitydb_time=' + (Date.now() - start) + ' ms.')
 
             return keySet;
         } catch (err) {
@@ -98,7 +115,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     const memoizedRawUrlToKeySet = memoized(rawUrlToKeySet, { cacheKey: args => args[0] });
 
     const rawUrlListToKeySet = async (rawUrlList, tx) => {
-        debug(`rawUrlListToKeySet ${rawUrlList}`)
+        debug('sri-security', `rawUrlListToKeySet ${rawUrlList}`)
         const query = sri4nodeUtils.prepareSQL('sri4node-security-api-composed-check');
         query.sql(`SELECT distinct sriq.key FROM (`);
 
@@ -124,9 +141,9 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
         query.sql(`) sriq;`);
 
-        const start = new Date();
+        const start = Date.now();
         const keySet = new Set((await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key));
-        debug('sri4node-security-api | security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+        debug('sri-security', 'security db check, securitydb_time=' + (Date.now() - start) + ' ms.')
 
         return keySet;
     }
@@ -134,7 +151,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     const memoizedRawUrlListToKeySet = memoized(rawUrlListToKeySet, { cacheKey: args => args[0].join('|') });
 
     const clearRawUrlCaches = () => {
-        debug('sri4node-security-api | ** cleaning rawUrl caches **')
+        debug('sri-security', '** cleaning rawUrl caches **')
         memoized.clear(memoizedRawUrlToKeySet);
         memoized.clear(memoizedRawUrlListToKeySet);
     }
@@ -223,13 +240,13 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 query.sql(`;`);
                 query.sql(`SET CONSTRAINTS ALL DEFERRED;`);
 
-                const start = new Date();
+                const start = Date.now();
                 keysNotMatched = (await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key);
-                debug('sri4node-security-api | security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+                debug('sri-security', 'security db check, securitydb_time=' + (Date.now() - start) + ' ms.')
             }
 
             if (keysNotMatched.length > 0) {
-                debug(`sri4node-security-api | keysNotMatched: ${keysNotMatched}`)
+                debug('sri-security', `keysNotMatched: ${keysNotMatched}`)
             }
 
             relevantSriRequests.forEach(sriRequest => {
@@ -252,18 +269,18 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         pluginConfig.oauthValve.handleForbiddenBySecurity(sriRequest)
 
         // If the valve did not throw an SriError, the default response 403 Forbidden is returned.
-        throw new SriError({ status: 403, sriRequestID: sriRequest.id })
+        throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
     }
 
     async function doSecurityRequest(batch) {
         try {
             const res = await memPut('/security/query/batch', batch);
             if (res.some(r => (r.status != 200))) {
-                debug('_______________________________________________________________')
-                debug(batch)
-                debug('-----')
-                debug(res)
-                debug('_______________________________________________________________')
+                debug('sri-security', '_______________________________________________________________')
+                debug('sri-security', batch)
+                debug('sri-security', '-----')
+                debug('sri-security', res)
+                debug('sri-security', '_______________________________________________________________')
                 throw 'unexpected.status.in.batch.result'
             }
             return res.map(r => r.body)
@@ -283,7 +300,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             // Do not allow mixed resource output. Does normally not occur.
             error(`ERR: Mixed resource output:`)
             error(elements)
-            throw new SriError({ status: 403 })
+            throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
         }
 
         const [resourceType] = resourceTypes
@@ -297,10 +314,10 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
             // (needs change in security API)
 
-            const start = new Date();
+            const start = Date.now();
 
             ([resourcesRaw] = await doSecurityRequest([{ href: url, verb: 'GET' }]));
-            debug('sri4node-security-api | response security, securitytime=' + (new Date() - start) + ' ms.')
+            debug('sri-security', 'response security, securitytime=' + (Date.now() - start) + ' ms.')
         }
 
         let relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType))
@@ -360,7 +377,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
     async function allowedCheckBatch(tx, sriRequest, elements) {
         const batch = elements.map(({ component, resource, ability }) => {
-            if (component === null) throw new SriError({ status: 403 })
+            if (component === null) throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
             const url = '/security/query/allowed?component=' + component
                 + '&person=' + getPersonFromSriRequest(sriRequest)
                 + '&ability=' + ability
@@ -402,7 +419,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 }
                 return !e.includes(rawRequired)
             })) {
-                debug(`sri4node-security-api | not allowed`)
+                debug('sri-security', `not allowed`)
                 handleNotAllowed(sriRequest)
             }
         }
@@ -414,7 +431,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
         const rawBatch = componentAbilitiesNeeded
                             .map(({ component, ability }) => {
-                                if (component === null) throw new SriError({ status: 403 })
+                                if (component === null) throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
                                 const url = '/security/query/resources/raw?component=' + component
                                     + '&person=' + getPersonFromSriRequest(sriRequest)
                                     + '&ability=' + ability ;
@@ -429,7 +446,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             const { type: resourceType } = urlToTypeAndKey(resource);
             const superuserRawUrl = `${resourceType}?$$meta.deleted=any`
             if (rawResourcesList.includes(superuserRawUrl)) {
-                debug(`super_user rights on ${resourceType}`)
+                debug('sri-security', `super_user rights on ${resourceType}`)
                 return true;
             }
 
@@ -450,13 +467,13 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                         return true;
                     }
 
-                    debug(`API CALL TO ${resourceType}/ispartof for ${resource} <-> ${rqList}`);
+                    debug('sri-security', `API CALL TO ${resourceType}/ispartof for ${resource} <-> ${rqList}`);
                     const result = await apiPost(`${resourceType}/ispartof`,
                     {
                       a: { href: resource },
                       b: { hrefs: rqList },
                     });
-                    debug(`API result: ${result.length}`);
+                    debug('sri-security', `API result: ${result.length}`);
                     return (result.length > 0);
                 } catch (err) {
                     error(`CATCHED ERROR on ${resourceType}/ispartof for ${resource} and ${rqList}`);
@@ -486,7 +503,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 return false;
             }
         }, {concurrency: 1})) {
-            debug(`sri4node-security-api | not allowed`)
+            debug('sri-security', `not allowed`)
             handleNotAllowed(sriRequest)
         }
     }
