@@ -27,7 +27,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
 
     const securityApi = require('@kathondvla/sri-client/node-sri-client')(securityConfiguration)
-    const memPut = memoized(securityApi.put.bind(securityApi), { 
+    const memPut = memoized(securityApi.put.bind(securityApi), {
         maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
         cacheKey: args => JSON.stringify(args),
     });
@@ -42,7 +42,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     apiConfiguration.headers['Content-type'] = 'application/json; charset=utf-8';
 
     const api = require('@kathondvla/sri-client/node-sri-client')(apiConfiguration)
-    const apiPost = memoized(api.post.bind(api), { 
+    const apiPost = memoized(api.post.bind(api), {
         maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
         cacheKey: args => JSON.stringify(args),
     });
@@ -196,7 +196,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 const query = sri4nodeUtils.prepareSQL('sri4node-security-api-composed-check');
                 // Default no caching raw urls in memory = backwards compatible.
                 //  => check every time with one composed query at the db which keys don't match the raw urls.
-                query.sql(`SET CONSTRAINTS ALL IMMEDIATE; SELECT distinct ck.key FROM
+                query.sql(`SELECT distinct ck.key FROM
                        (VALUES ${allKeys.map(k => `('${k}'::uuid)`).join()}) as ck (key)
                        WHERE NOT EXISTS `);
 
@@ -209,7 +209,6 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                         const sub_query = sri4nodeUtils.prepareSQL('sri4node-security-api-sub-check');
                         await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, sub_query);
                         sub_query.sql(` AND "${tableFromMapping(mapping)}"."key" = ck.key`);
-
                         if (idx > 0) {
                             query.sql('\nAND NOT EXISTS\n');
                         }
@@ -221,10 +220,19 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                     }
                 }, { concurrency: 1 });
                 query.sql(`;`);
-                query.sql(`SET CONSTRAINTS ALL DEFERRED;`);
 
                 const start = new Date();
+                if (ability !== 'read') {
+                    const constraintsImmediateQuery = sri4nodeUtils.prepareSQL('set-constraints-immediate');
+                    constraintsImmediateQuery.sql(`SET CONSTRAINTS ALL IMMEDIATE;`);
+                    await sri4nodeUtils.executeSQL(tx, constraintsImmediateQuery);
+                }
                 keysNotMatched = (await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key);
+                if (ability !== 'read') {
+                    const constraintsDeferredQuery = sri4nodeUtils.prepareSQL('set-constraints-deferred');
+                    constraintsDeferredQuery.sql(`SET CONSTRAINTS ALL DEFERRED;`);
+                    await sri4nodeUtils.executeSQL(tx, constraintsDeferredQuery);
+                }
                 debug('sri4node-security-api | security db check, securitydb_time=' + (new Date() - start) + ' ms.')
             }
 
@@ -331,7 +339,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         });
 
         const keysToCheck = elements.map(element => utils.getKeyFromPermalink(element.permalink))
-                                    .filter(key => allowedPermalinkKeys.indexOf(key) < 0);
+            .filter(key => allowedPermalinkKeys.indexOf(key) < 0);
 
         // In case no keys need to be checked for security are found, nothing needs to be done.
         if (keysToCheck.length > 0) {
@@ -409,20 +417,20 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
 
     async function allowedCheckWithRawAndIsPartOfBatch(tx, sriRequest, elements) {
-        const componentAbilitiesNeeded = _.uniqBy( elements.map(({ component, _resource, ability }) => ({ component, ability }) )
-                                                 , ({ component, ability }) => `${component}!=!${ability}` );
+        const componentAbilitiesNeeded = _.uniqBy(elements.map(({ component, _resource, ability }) => ({ component, ability }))
+            , ({ component, ability }) => `${component}!=!${ability}`);
 
         const rawBatch = componentAbilitiesNeeded
-                            .map(({ component, ability }) => {
-                                if (component === null) throw new SriError({ status: 403 })
-                                const url = '/security/query/resources/raw?component=' + component
-                                    + '&person=' + getPersonFromSriRequest(sriRequest)
-                                    + '&ability=' + ability ;
-                                return { href: url, verb: 'GET' }
-                            });
+            .map(({ component, ability }) => {
+                if (component === null) throw new SriError({ status: 403 })
+                const url = '/security/query/resources/raw?component=' + component
+                    + '&person=' + getPersonFromSriRequest(sriRequest)
+                    + '&ability=' + ability;
+                return { href: url, verb: 'GET' }
+            });
 
-        const rawMap = new Map(_.zip( componentAbilitiesNeeded.map(({ component, ability }) => `${component}!=!${ability}`)
-                                    , await doSecurityRequest(rawBatch)));
+        const rawMap = new Map(_.zip(componentAbilitiesNeeded.map(({ component, ability }) => `${component}!=!${ability}`)
+            , await doSecurityRequest(rawBatch)));
 
         if (!await pEvery(elements, async ({ component, resource, ability }) => {
             const rawResourcesList = rawMap.get(`${component}!=!${ability}`);
@@ -436,10 +444,10 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             const relevantQueries = new Set();
 
             rawResourcesList.forEach((u) => {
-              const { base: rawResourceType } = parseResource(u)
-              if (rawResourceType === resourceType) {
-                relevantQueries.add(u);
-              }
+                const { base: rawResourceType } = parseResource(u)
+                if (rawResourceType === resourceType) {
+                    relevantQueries.add(u);
+                }
             });
 
             const rqList = Array.from(relevantQueries);
@@ -452,40 +460,40 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
                     debug(`API CALL TO ${resourceType}/ispartof for ${resource} <-> ${rqList}`);
                     const result = await apiPost(`${resourceType}/ispartof`,
-                    {
-                      a: { href: resource },
-                      b: { hrefs: rqList },
-                    });
+                        {
+                            a: { href: resource },
+                            b: { hrefs: rqList },
+                        });
                     debug(`API result: ${result.length}`);
                     return (result.length > 0);
                 } catch (err) {
                     error(`CATCHED ERROR on ${resourceType}/ispartof for ${resource} and ${rqList}`);
                     if ((err instanceof SriClientError) && (err.status === 404)) {
-                      throw new sriRequest.SriError({
-                        status: 500,
-                        errors: [{
-                          code: 'isPartOf.not.implemented',
-                          msg: `isPartOf seems to be unimplemented on ${resourceType}`,
-                          err: err.body,
-                        }],
-                      });
+                        throw new sriRequest.SriError({
+                            status: 500,
+                            errors: [{
+                                code: 'isPartOf.not.implemented',
+                                msg: `isPartOf seems to be unimplemented on ${resourceType}`,
+                                err: err.body,
+                            }],
+                        });
                     } else {
-                      error(JSON.stringify(err));
-                      throw new sriRequest.SriError({
-                        status: 500,
-                        errors: [{
-                          code: 'isPartOf.failed',
-                          msg: `isPartOf has failed on ${resource}`,
-                          status: err.status,
-                          err: err.body,
-                        }],
-                      });
+                        error(JSON.stringify(err));
+                        throw new sriRequest.SriError({
+                            status: 500,
+                            errors: [{
+                                code: 'isPartOf.failed',
+                                msg: `isPartOf has failed on ${resource}`,
+                                status: err.status,
+                                err: err.body,
+                            }],
+                        });
                     }
                 }
             } else {
                 return false;
             }
-        }, {concurrency: 1})) {
+        }, { concurrency: 1 })) {
             debug(`sri4node-security-api | not allowed`)
             handleNotAllowed(sriRequest)
         }
