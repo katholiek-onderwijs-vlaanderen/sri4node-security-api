@@ -72,7 +72,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     }
 
     const rawUrlToKeySet = async (rawUrlStr, tx) => {
-        debug(`rawUrlToKeySet ${rawUrlStr}`)
+        debug('sri-security', `rawUrlToKeySet ${rawUrlStr}`)
         const rawUrl = urlModule.parse(rawUrlStr, true);
         const mapping = typeToMapping(rawUrl.pathname);
         const parameters = _.cloneDeep(rawUrl.query);
@@ -83,7 +83,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
             const start = new Date();
             const keySet = new Set((await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key));
-            debug('sri4node-security-api | security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+            debug('sri-security', 'security db check, securitydb_time=' + (new Date() - start) + ' ms.')
 
             return keySet;
         } catch (err) {
@@ -98,7 +98,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     const memoizedRawUrlToKeySet = memoized(rawUrlToKeySet, { cacheKey: args => args[0] });
 
     const rawUrlListToKeySet = async (rawUrlList, tx) => {
-        debug(`rawUrlListToKeySet ${rawUrlList}`)
+        debug('sri-security', `rawUrlListToKeySet ${rawUrlList}`)
         const query = sri4nodeUtils.prepareSQL('sri4node-security-api-composed-check');
         query.sql(`SELECT distinct sriq.key FROM (`);
 
@@ -126,7 +126,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
         const start = new Date();
         const keySet = new Set((await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key));
-        debug('sri4node-security-api | security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+        debug('sri-security', 'security db check, securitydb_time=' + (new Date() - start) + ' ms.')
 
         return keySet;
     }
@@ -134,7 +134,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     const memoizedRawUrlListToKeySet = memoized(rawUrlListToKeySet, { cacheKey: args => args[0].join('|') });
 
     const clearRawUrlCaches = () => {
-        debug('sri4node-security-api | ** cleaning rawUrl caches **')
+        debug('sri-security', '** cleaning rawUrl caches **')
         memoized.clear(memoizedRawUrlToKeySet);
         memoized.clear(memoizedRawUrlListToKeySet);
     }
@@ -147,7 +147,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             .forEach(sriRequest => {
                 if (sriRequest.keysToCheckBySecurityPlugin) {
                     const { keys, relevantRawResources, ability } = sriRequest.keysToCheckBySecurityPlugin;
-                    const resourceType = utils.parseResource(sriRequest.originalUrl).base;
+                    const resourceType = parseResource(sriRequest.originalUrl).base;
                     const keyStr = JSON.stringify({ resourceType, ability });
                     let subMap;
                     if (map[keyStr] === undefined) {
@@ -167,6 +167,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
         await pMap(Object.keys(map), async keyStr => {
             console.log(`Checking security for ${keyStr}`);
+            const start = new Date();
             const subMap = map[keyStr];
             const rawUrlList = Object.keys(subMap);
             const allKeys = _.uniq(_.flatten(rawUrlList.map(u => subMap[u].keys)));
@@ -237,7 +238,11 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             }
 
             if (keysNotMatched.length > 0) {
-                debug(`sri4node-security-api | keysNotMatched: ${keysNotMatched}`)
+                debug('sri-security', `keysNotMatched: ${keysNotMatched}`)
+            }
+
+            if (relevantSriRequests.length === 1) {
+              relevantSriRequests[0].securityHandling = `db_check (${(new Date() - start)}ms)`;
             }
 
             relevantSriRequests.forEach(sriRequest => {
@@ -263,17 +268,21 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         throw new SriError({ status: 403, sriRequestID: sriRequest.id })
     }
 
-    async function doSecurityRequest(batch) {
+    async function doSecurityRequest(batch, sriRequest) {
         try {
+            const start = new Date();
             const res = await memPut('/security/query/batch', batch);
             if (res.some(r => (r.status != 200))) {
-                debug('_______________________________________________________________')
-                debug(batch)
-                debug('-----')
-                debug(res)
-                debug('_______________________________________________________________')
+                debug('sri-security', '_______________________________________________________________')
+                debug('sri-security', batch)
+                debug('sri-security', '-----')
+                debug('sri-security', res)
+                debug('sri-security', '_______________________________________________________________')
                 throw 'unexpected.status.in.batch.result'
             }
+            const fetchTime = new Date() - start;
+            sriRequest.sriSecurityTimeToFetchRawResources = sriRequest.sriSecurityTimeToFetchRawResources !== undefined ? 
+                            sriRequest.sriSecurityTimeToFetchRawResources + fetchTime : fetchTime;
             return res.map(r => r.body)
         } catch (err) {
             error('____________________________ E R R O R ____________________________________________________')
@@ -284,12 +293,29 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         }
     }
 
+    function composeRawResourcesUrl(component, operation, person) {
+      return '/security/query/resources/raw?component=' + component
+        + '&ability=' + operation
+        + '&person=' + person;
+    }
+
+    async function requestRawResourcesFromSecurityServer(component, operation, sriRequest) {
+        const person = getPersonFromSriRequest(sriRequest);
+        const url = composeRawResourcesUrl(component, operation, person);
+        // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
+        // (needs change in security API)
+
+        const [resourcesRaw] = await doSecurityRequest([{ href: url, verb: 'GET' }], sriRequest);
+        return resourcesRaw;
+    }
+
+
     async function checkPermissionOnElements(component, tx, sriRequest, elements, operation, immediately = false) {
         const resourceTypes = _.uniq(elements.map(e => utils.getResourceFromUrl(e.permalink)))
 
         if (resourceTypes.length > 1) {
             // Do not allow mixed resource output. Does normally not occur.
-            error(`ERR: Mixed resource output:`)
+            error(`sri-security | ERR: Mixed resource output:`)
             error(elements)
             throw new SriError({ status: 403 })
         }
@@ -299,34 +325,26 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         if (memResourcesRawInternal !== null) {
             resourcesRaw = await memResourcesRawInternal(sriRequest, tx, component, operation, getPersonFromSriRequest(sriRequest));
         } else {
-            const url = '/security/query/resources/raw?component=' + component
-                + '&ability=' + operation
-                + '&person=' + getPersonFromSriRequest(sriRequest);
-            // an optimalisation might be to be able to skip ability parameter and cache resources raw for all abilities together
-            // (needs change in security API)
-
-            const start = new Date();
-
-            ([resourcesRaw] = await doSecurityRequest([{ href: url, verb: 'GET' }]));
-            debug('sri4node-security-api | response security, securitytime=' + (new Date() - start) + ' ms.')
+            resourcesRaw = await requestRawResourcesFromSecurityServer(component, operation, sriRequest);
         }
-
         let relevantRawResources = _.filter(resourcesRaw, rawEntry => (utils.getResourceFromUrl(rawEntry) === resourceType))
 
         const superUserResource = resourceType;
         const superUserResourceInclDeleted = resourceType + '?$$meta.deleted=any';
         if (sriRequest.containsDeleted) {
             if (relevantRawResources.includes(superUserResourceInclDeleted)) {
+                sriRequest.securityHandling='super_user';
                 return true
             }
         } else {
             if (relevantRawResources.includes(superUserResource) || relevantRawResources.includes(superUserResourceInclDeleted)) {
+                sriRequest.securityHandling='super_user';
                 return true
             }
         }
 
         // Deal with permalinks in relevantRawResources. As they don't need to be checked against the database,
-        // we can handle them here already: exclude the keys of the permalinks from keysToCheck and fiter permalinks 
+        // we can handle them here already: exclude the keys of the permalinks from keysToCheck and filter permalinks 
         // out of relevantRawResources.
         const allowedPermalinkKeys = [];
         relevantRawResources = relevantRawResources.filter(rawUrl => {
@@ -335,6 +353,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 allowedPermalinkKeys.push(permalinkKey);
                 return false; // only keep query resources in relevantRawResources
             }
+            sriRequest.securityHandling='permalink_in_raw_list';
             return true;
         });
 
@@ -352,6 +371,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             }
 
             if (relevantRawResources.length === 0) {
+                sriRequest.securityHandling = 'no_relevant_raw_resources'
                 // This request has keys for which permission is required but no relevant resources 
                 //  --> obviously we can already disallow the request without any database check.
                 handleNotAllowed(sriRequest);
@@ -363,6 +383,8 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                     await checkKeysAgainstDatabase([sriRequest]);
                 }
             }
+        } else {
+          sriRequest.securityHandling = 'no_keys_to_check'
         }
     }
 
@@ -375,7 +397,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 + (resource !== undefined ? '&resource=' + resource : '');
             return { href: url, verb: 'GET' }
         })
-        const result = await doSecurityRequest(batch)
+        const result = await doSecurityRequest(batch, sriRequest)
 
         const notAllowedIndices = []
         result.forEach((e, idx) => {
@@ -400,7 +422,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 return { href: url, verb: 'GET' }
             })
 
-            const rawResult = await doSecurityRequest(rawBatch)
+            const rawResult = await doSecurityRequest(rawBatch, sriRequest)
 
             if (rawResult.some((e, idx) => {
                 let rawRequired = toCheck[idx].type
@@ -410,7 +432,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 }
                 return !e.includes(rawRequired)
             })) {
-                debug(`sri4node-security-api | not allowed`)
+                debug('sri-security', `not allowed`)
                 handleNotAllowed(sriRequest)
             }
         }
@@ -429,15 +451,16 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                 return { href: url, verb: 'GET' }
             });
 
-        const rawMap = new Map(_.zip(componentAbilitiesNeeded.map(({ component, ability }) => `${component}!=!${ability}`)
-            , await doSecurityRequest(rawBatch)));
+        const rawMap = new Map(_.zip( componentAbilitiesNeeded.map(({ component, ability }) => `${component}!=!${ability}`)
+                                    , await doSecurityRequest(rawBatch, sriRequest)));
 
         if (!await pEvery(elements, async ({ component, resource, ability }) => {
             const rawResourcesList = rawMap.get(`${component}!=!${ability}`);
             const { type: resourceType } = urlToTypeAndKey(resource);
             const superuserRawUrl = `${resourceType}?$$meta.deleted=any`
             if (rawResourcesList.includes(superuserRawUrl)) {
-                debug(`super_user rights on ${resourceType}`)
+                debug('sri-security', `super_user rights on ${resourceType}`)
+                sriRequest.securityHandling='super_user';
                 return true;
             }
 
@@ -458,7 +481,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                         return true;
                     }
 
-                    debug(`API CALL TO ${resourceType}/ispartof for ${resource} <-> ${rqList}`);
+                    debug('sri-security', `API CALL TO ${resourceType}/ispartof for ${resource} <-> ${rqList}`);
                     const result = await apiPost(`${resourceType}/ispartof`,
                         {
                             a: { href: resource },
@@ -467,7 +490,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                     debug(`API result: ${result.length}`);
                     return (result.length > 0);
                 } catch (err) {
-                    error(`CATCHED ERROR on ${resourceType}/ispartof for ${resource} and ${rqList}`);
+                    error(`sri-security | CATCHED ERROR on ${resourceType}/ispartof for ${resource} and ${rqList}`);
                     if ((err instanceof SriClientError) && (err.status === 404)) {
                         throw new sriRequest.SriError({
                             status: 500,
@@ -512,7 +535,9 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         setMergeRawResourcesFun,
         beforePhaseHook,
         getBaseUrl,
-        clearRawUrlCaches
+        clearRawUrlCaches,
+        composeRawResourcesUrl,
+        requestRawResourcesFromSecurityServer
     }
 
 };

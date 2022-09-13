@@ -35,11 +35,11 @@ exports = module.exports = function (db, funToRunAtNotification) {
         removeListeners(e.client);
         reconnect(5000, 10) // retry 10 times, with 5-second intervals
             .then(() => {
-                debug('sri4node-security-api | pglistener - successfully reconnected.');
+                debug('sri-security', 'pglistener - successfully reconnected.');
             })
             .catch(() => {
                 // failed after 10 attempts
-                error('sri4node-security-api | pglistener - Connection Lost Permanently -> exiting.');
+                error('sri-security | pglistener - Connection Lost Permanently -> exiting.');
                 process.exit(); // exiting the process
             });
     }
@@ -70,22 +70,24 @@ exports = module.exports = function (db, funToRunAtNotification) {
         });
     }
 
-
-    function sendNotification() {
-        connection.none('NOTIFY ${channel:name}, ${payload}', { channel, payload: msg })
-            .catch(err => {  // unlikely to ever happen
-                error('sri4node-security-api | pglistener - failed to Notify:');
-                error(err);
-            })
+    async function sendNotification() {
+        try {
+            await connection.none('NOTIFY ${channel:name}, ${payload}', { channel, payload: msg })
+            debug('sri-security', 'pglistener - DONE');
+        } catch(err) { // unlikely to ever happen
+            error('sri-security | pglistener - failed to Notify:');
+            error(err);
+        }
     }
 
-    reconnect() // = same as reconnect(0, 1)
+    reconnect(5000, 10)
         .then(obj => {
-            debug('sri4node-security-api | pglistener - successful initial connection');
+            debug('sri-security', 'pglistener - successful initial connection');
         })
         .catch(err => {
-            error('sri4node-security-api | pglistener - failed initial connection:');
+            error('sri-security | pglistener - failed initial connection:');
             error(err);
+            process.exit(); // exiting the process
         });
 
     return {
