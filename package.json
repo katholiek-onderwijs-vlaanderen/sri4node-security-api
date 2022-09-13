@@ -20,13 +20,13 @@
   "license": "UNLICENSED",
   "homepage": "https://github.com/rodrigouroz/sri4node-security-api",
   "devDependencies": {
-    "eslint": "^1.7.3",
+    "eslint": "^8.23.1",
     "mocha": "^9.1.1",
     "chai": "^4.3.4",
-    "nock": "^2.17.0"
+    "nock": "^13.2.9"
   },
   "dependencies": {
-    "@kathondvla/sri-client": "^3.0.5",
+    "@kathondvla/sri-client": "^3.0.16",
     "mem": "^8.0.0",
     "p-every": "^2.0.0",
     "p-map": "^4.0.0"
