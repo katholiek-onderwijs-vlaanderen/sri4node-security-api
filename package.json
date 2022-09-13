@@ -21,7 +21,7 @@
   "homepage": "https://github.com/rodrigouroz/sri4node-security-api",
   "devDependencies": {
     "eslint": "^1.7.3",
-    "mocha": "^9.1.1",
+    "mocha": "^9.2.2",
     "chai": "^4.3.4",
     "nock": "^2.17.0"
   },
