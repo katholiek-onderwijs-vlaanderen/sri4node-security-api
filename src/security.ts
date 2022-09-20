@@ -267,10 +267,10 @@ function securityHandler(pluginConfig:TPluginConfig, sriConfig:TSriConfig, sri4n
 
 
   function handleNotAllowed(sriRequest) {
-    // Notify the oauthValve that the current request is forbidden. The valve might act
+    // Notify the oauthPlugin that the current request is forbidden. The oauth plugin might act
     // according to this information by throwing an SriError object (for example a redirect to a
     // login page or an error in case of a bad authentication token).
-    (pluginConfig.oauthValve as any).handleForbiddenBySecurity(sriRequest)
+    (pluginConfig.oauthPlugin as any).handleForbiddenBySecurity(sriRequest)
 
     // If the valve did not throw an SriError, the default response 403 Forbidden is returned.
     throw new SriError({ status: 403, sriRequestID: sriRequest.id })
