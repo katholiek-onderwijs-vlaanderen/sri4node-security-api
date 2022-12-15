@@ -1,32 +1,42 @@
-const util = require('util');
 const urlModule = require('url');
 const _ = require('lodash');
 const pMap = require('p-map');
 const pEvery = require('p-every');
 const memoized = require('mem');
-
-
-const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey, parseResource } = require('sri4node/js/common.js')
-
+const nodeSriClientFactory = require('@kathondvla/sri-client/node-sri-client');
 const SriClientError = require('@kathondvla/sri-client/sri-client-error');
 
 var utils = require('./utils');
 
-exports = module.exports = function (pluginConfig, sriConfig) {
+/**
+ * @typedef {import('sri4node')} TSri4Node
+ * @typedef {import('sri4node').TPluginConfig} TPluginConfig
+ */
+
+/**
+ * 
+ * @param {TPluginConfig} pluginConfig 
+ * @param {TSri4Node} sri4node 
+ * @returns 
+ */
+ exports = module.exports = function (pluginConfig, sri4node) {
 
     'use strict';
 
-    const sri4nodeUtils = sriConfig.utils
+    const { SriError, debug, error } = sri4node;
+    const { typeToMapping, tableFromMapping, urlToTypeAndKey, parseResource } = sri4node.utils;
+
+    const { getPersonFromSriRequest } = utils;
+    const sri4nodeUtils = sri4node.utils;
 
     const securityConfiguration = {
         baseUrl: pluginConfig.securityApiBase,
         headers: pluginConfig.headers,
         username: pluginConfig.auth.user,
         password: pluginConfig.auth.pass,
-        accessToken: pluginConfig.accessToken
-    }
+    };
 
-    const securityApi = require('@kathondvla/sri-client/node-sri-client')(securityConfiguration)
+    const securityApi = nodeSriClientFactory(securityConfiguration);
     const memPut = memoized(securityApi.put.bind(securityApi), {
         maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
         cacheKey: args => JSON.stringify(args),
@@ -34,14 +44,15 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
     const apiConfiguration = {
         baseUrl: pluginConfig.apiBase,
-        headers: pluginConfig.headers,
+        headers: {
+            'Content-type': 'application/json; charset=utf-8',
+            ...pluginConfig.headers,
+        },
         username: pluginConfig.auth.user,
         password: pluginConfig.auth.pass,
-        accessToken: pluginConfig.accessToken
-    }
-    apiConfiguration.headers['Content-type'] = 'application/json; charset=utf-8';
+    };
 
-    const api = require('@kathondvla/sri-client/node-sri-client')(apiConfiguration)
+    const api = nodeSriClientFactory(apiConfiguration)
     const apiPost = memoized(api.post.bind(api), {
         maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
         cacheKey: args => JSON.stringify(args),
@@ -81,9 +92,9 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             const query = sri4nodeUtils.prepareSQL('sri4node-security-api-check');
             await sri4nodeUtils.convertListResourceURLToSQL(mapping, parameters, false, tx, query);
 
-            const start = new Date();
+            const start = Date.now();
             const keySet = new Set((await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key));
-            debug('sri-security', 'security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+            debug('sri-security', 'security db check, securitydb_time=' + (Date.now() - start) + ' ms.')
 
             return keySet;
         } catch (err) {
@@ -124,9 +135,9 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
         query.sql(`) sriq;`);
 
-        const start = new Date();
+        const start = Date.now();
         const keySet = new Set((await sri4nodeUtils.executeSQL(tx, query)).map(r => r.key));
-        debug('sri-security', 'security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+        debug('sri-security', 'security db check, securitydb_time=' + (Date.now() - start) + ' ms.')
 
         return keySet;
     }
@@ -167,7 +178,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
         await pMap(Object.keys(map), async keyStr => {
             console.log(`Checking security for ${keyStr}`);
-            const start = new Date();
+            const start = Date.now();
             const subMap = map[keyStr];
             const rawUrlList = Object.keys(subMap);
             const allKeys = _.uniq(_.flatten(rawUrlList.map(u => subMap[u].keys)));
@@ -234,7 +245,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
                     constraintsDeferredQuery.sql(`SET CONSTRAINTS ALL DEFERRED;`);
                     await sri4nodeUtils.executeSQL(tx, constraintsDeferredQuery);
                 }
-                debug('sri4node-security-api | security db check, securitydb_time=' + (new Date() - start) + ' ms.')
+                debug('sri-security', 'security db check, securitydb_time=' + (Date.now() - start) + ' ms.')
             }
 
             if (keysNotMatched.length > 0) {
@@ -242,7 +253,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             }
 
             if (relevantSriRequests.length === 1) {
-              relevantSriRequests[0].securityHandling = `db_check (${(new Date() - start)}ms)`;
+              relevantSriRequests[0].securityHandling = `db_check (${(Date.now() - start)}ms)`;
             }
 
             relevantSriRequests.forEach(sriRequest => {
@@ -259,13 +270,13 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
 
     function handleNotAllowed(sriRequest) {
-        // Notify the oauthValve that the current request is forbidden. The valve might act
+        // Notify the oauthPlugin that the current request is forbidden. The valve might act
         // according to this information by throwing an SriError object (for example a redirect to a 
         // login page or an error in case of a bad authentication token). 
-        pluginConfig.oauthValve.handleForbiddenBySecurity(sriRequest)
+        pluginConfig.oauthPlugin.handleForbiddenBySecurity(sriRequest)
 
         // If the valve did not throw an SriError, the default response 403 Forbidden is returned.
-        throw new SriError({ status: 403, sriRequestID: sriRequest.id })
+        throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
     }
 
     async function doSecurityRequest(batch, sriRequest) {
@@ -317,7 +328,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             // Do not allow mixed resource output. Does normally not occur.
             error(`sri-security | ERR: Mixed resource output:`)
             error(elements)
-            throw new SriError({ status: 403 })
+            throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
         }
 
         const [resourceType] = resourceTypes
@@ -390,7 +401,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
     async function allowedCheckBatch(tx, sriRequest, elements) {
         const batch = elements.map(({ component, resource, ability }) => {
-            if (component === null) throw new SriError({ status: 403 })
+            if (component === null) throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
             const url = '/security/query/allowed?component=' + component
                 + '&person=' + getPersonFromSriRequest(sriRequest)
                 + '&ability=' + ability
@@ -443,13 +454,13 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             , ({ component, ability }) => `${component}!=!${ability}`);
 
         const rawBatch = componentAbilitiesNeeded
-            .map(({ component, ability }) => {
-                if (component === null) throw new SriError({ status: 403 })
-                const url = '/security/query/resources/raw?component=' + component
-                    + '&person=' + getPersonFromSriRequest(sriRequest)
-                    + '&ability=' + ability;
-                return { href: url, verb: 'GET' }
-            });
+                            .map(({ component, ability }) => {
+                                if (component === null) throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
+                                const url = '/security/query/resources/raw?component=' + component
+                                    + '&person=' + getPersonFromSriRequest(sriRequest)
+                                    + '&ability=' + ability ;
+                                return { href: url, verb: 'GET' }
+                            });
 
         const rawMap = new Map(_.zip( componentAbilitiesNeeded.map(({ component, ability }) => `${component}!=!${ability}`)
                                     , await doSecurityRequest(rawBatch, sriRequest)));
@@ -516,8 +527,8 @@ exports = module.exports = function (pluginConfig, sriConfig) {
             } else {
                 return false;
             }
-        }, { concurrency: 1 })) {
-            debug(`sri4node-security-api | not allowed`)
+        }, {concurrency: 1})) {
+            debug('sri-security', `not allowed`)
             handleNotAllowed(sriRequest)
         }
     }

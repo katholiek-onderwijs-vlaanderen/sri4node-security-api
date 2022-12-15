@@ -1,41 +1,40 @@
+const { SriError } = require('sri4node');
+const { parseResource, debug, error } = require('sri4node/dist/js/common');
 const utils = require('./js/utils');
-const { debug, error } = require('sri4node/js/common.js')
-
-const { getPersonFromSriRequest, parseResource, SriError } = require('sri4node/js/common.js')
 
 /**
- * @typedef {import("./js/utils").QueryParam} QueryParam
- *
- * @typedef {import("./js/utils").MultiValuedPropertyConfig} MultiValuedPropertyConfig
- *
- * @typedef {import("./js/utils").OptimisationOptions} OptimisationOptions
- *
- * @callback InitOauthValveFn
- *  @param {object} sriConfig
- *  @returns {object}
- *
- * @typedef {object} PluginConfig
- *  @property {String} defaultComponent
- *  @property {InitOauthValveFn} initOauthValve
- *  @property {'CacheRawListResults' | 'CacheRawResults' } securityDbCheckMethod
- *  @property {OptimisationOptions} optimisation
+ * @typedef {import('sri4node')} TSri4Node
+ * @typedef {import('sri4node').TSriConfig} TSriConfig
+ * @typedef {import('sri4node').TPluginConfig} TPluginConfig
  */
 
 /**
- * @param {PluginConfig} pluginConfig
- * @returns an object with some methods as used by sri4node's plugin mechanism
+ * 
+ * @param {TPluginConfig} pluginConfig 
+ * @param {TSri4Node} sri4node
+ * @returns 
  */
-module.exports = function (pluginConfig) {
+module.exports = function (pluginConfig, sri4node) {
+  if (pluginConfig.component === undefined) {
+    throw new Error('security plugin config error: component property is missing');
+  }
+  if (pluginConfig.oauthPlugin === undefined) {
+    throw new Error('security plugin config error: oauthPlugin property is missing');
+  }
+
   let security;
   let pglistener;
   return {
+    /**
+     * 
+     * @param {TSriConfig} sriConfig 
+     * @param {*} db 
+     */
     init: function (sriConfig, db) {
-      pluginConfig.oauthValve = pluginConfig.initOauthValve(sriConfig);
-
-      security = require('./js/security')(pluginConfig, sriConfig);
+      security = require('./js/security')(pluginConfig, sri4node);
       if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
             pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
-        pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches);
+        pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches, sri4node);
       }
 
       if (pluginConfig.optimisation === undefined) {
@@ -69,7 +68,7 @@ module.exports = function (pluginConfig) {
           const pr = parseResource(sriRequest.originalUrl);
           if (pr.id === null && pr.query !== null) {
               if (pluginConfig.optimisation.mode !== 'NONE' && pluginConfig.optimisation.mode !== 'DEBUG') {
-                  const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.defaultComponent, 'read', sriRequest);
+                  const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.component, 'read', sriRequest);
                   sriRequest.listRequest = true;
                   sriRequest.listRequestAllowedByRawResourcesOptimization =
                       utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl, resourcesRaw, pluginConfig.optimisation);
@@ -86,7 +85,7 @@ module.exports = function (pluginConfig) {
 
       const handleDebugOptimisation = async (sriRequest, ability, allowed) => {
         if (optimisationDebugEnabled(sriRequest, ability)) {
-          const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.defaultComponent, 'read', sriRequest);
+          const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.component, 'read', sriRequest);
 
           const optimisationResultWithNormal = utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl,
             resourcesRaw, { ...pluginConfig.optimisation, mode: 'NORMAL' });
@@ -99,7 +98,7 @@ module.exports = function (pluginConfig) {
           const json = {
             url: sriRequest.originalUrl,
             urlTemplate: urlTemplate,
-            rawResources: security.composeRawResourcesUrl(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest)),
+            rawResources: security.composeRawResourcesUrl(pluginConfig.component, 'read', utils.getPersonFromSriRequest(sriRequest)),
             unoptimised: allowed,
             handling: sriRequest.securityHandling,
             normal: optimisationResultWithNormal,
@@ -119,7 +118,7 @@ module.exports = function (pluginConfig) {
       let check = async function (tx, sriRequest, elements, ability) {
         // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
         try {
-          if ( pluginConfig.defaultComponent==='/security/components/security-api' 
+          if ( pluginConfig.component==='/security/components/security-api'
                 &&  sriRequest.userObject && sriRequest.userObject.username==='app.security' ) {
             sriRequest.securityHandling = 'bootstrap_bypass';
           } else if (ability==='read' && sriRequest.listRequestAllowedByRawResourcesOptimization===true) {
@@ -129,10 +128,10 @@ module.exports = function (pluginConfig) {
             if (ability==='read' && pr.id === null && pr.query !== null) {
               debug('sri-security', `list resource (${sriRequest.originalUrl}) requested as part of batch -- currently security optimization is not available for such batch parts. `);
             }
-            await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, false)
+            await security.checkPermissionOnElements(pluginConfig.component, tx, sriRequest, elements, ability, false)
           } else {
             try {
-              await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, true)
+              await security.checkPermissionOnElements(pluginConfig.component, tx, sriRequest, elements, ability, true)
               if (pluginConfig.optimisation.mode === 'DEBUG') {
                 await handleDebugOptimisation(sriRequest, ability, true);
               } 
@@ -150,7 +149,7 @@ module.exports = function (pluginConfig) {
             const json = {
               url: sriRequest.originalUrl,
               urlTemplate: getUrlTemplate(sriRequest.originalUrl),
-              rawResources: security.composeRawResourcesUrl(pluginConfig.defaultComponent, ability, getPersonFromSriRequest(sriRequest)),
+              rawResources: security.composeRawResourcesUrl(pluginConfig.component, ability, utils.getPersonFromSriRequest(sriRequest)),
               timeToFetchRawResources: sriRequest.sriSecurityTimeToFetchRawResources,
               handling: sriRequest.securityHandling,
               falseNegative: (sriRequest.listRequest === true) ? sriRequest.securityHandling.startsWith('db_check') : null,
@@ -163,7 +162,7 @@ module.exports = function (pluginConfig) {
             const json = {
               url: sriRequest.originalUrl,
               urlTemplate: getUrlTemplate(sriRequest.originalUrl),
-              rawResources: security.composeRawResourcesUrl(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest)),
+              rawResources: security.composeRawResourcesUrl(pluginConfig.component, 'read', utils.getPersonFromSriRequest(sriRequest)),
               timeToFetchRawResources: sriRequest.sriSecurityTimeToFetchRawResources,
               err
             }
@@ -189,7 +188,9 @@ module.exports = function (pluginConfig) {
       if (securityBypass === true) {
         check = async function (tx, sriRequest, elements, ability) {
           // in this mode (part of the security backup plan), everything is allowed as long a user is logged in
-          return (sriRequest.userObject!=null && sriRequest.userObject!=undefined);
+          if (sriRequest.userObject === null || sriRequest.userObject === undefined) {
+            throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [ 'User not logged in' ] });
+          }
         }
       }
 
@@ -214,7 +215,7 @@ module.exports = function (pluginConfig) {
 
     checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component, immediately=false) { 
       if (component === undefined) {
-        component = pluginConfig.defaultComponent
+        component = pluginConfig.component
       }
       if (resourceList.length === 0) {
         error('Warning: checkPermissionOnResourceList with empty resourceList makes no sense!')
@@ -225,13 +226,13 @@ module.exports = function (pluginConfig) {
     },
     allowedCheck: function (tx, sriRequest, ability, resource, component) {
       if (component === undefined) {
-        component = pluginConfig.defaultComponent
+        component = pluginConfig.component
       }
       return security.allowedCheckBatch(tx, sriRequest, [{component, resource, ability }])
     },
     allowedCheckBatch: function (tx, sriRequest, elements) { return security.allowedCheckBatch(tx, sriRequest, elements) },
     allowedCheckWithRawAndIsPartOfBatch: function (tx, sriRequest, elements) { return security.allowedCheckWithRawAndIsPartOfBatch(tx, sriRequest, elements) },    
-    getOauthValve: () => pluginConfig.oauthValve,
+    getOauthValve: () => pluginConfig.oauthPlugin,
     getBaseUrl: () => security.getBaseUrl(),
 
     // NOT intented for public usage, only used by beveiliging_nodejs

@@ -337,7 +337,7 @@ function pathNameIsEqualAndSearchParamsProduceSubset(parsedUrl1, parsedUrl2, opt
  * },
  * 
  * @param {String} currentPath 
- * @param {Set<String>} rawPaths 
+ * @param {String[]} rawPaths 
  * @param {OptimisationOptions} optimisationOptions
  * 
  * @returns {Boolean}
@@ -379,7 +379,13 @@ function isPathAllowedBasedOnResourcesRaw(currentPath, rawPaths, optimisationOpt
   }
 }
 
+const getPersonFromSriRequest = (sriRequest) => {
+  // A userObject of null happens when the user is (not yet) logged in
+  return (sriRequest.userObject ? '/persons/' + sriRequest.userObject.uuid : 'NONE');
+};
+
 module.exports = {
+  getPersonFromSriRequest,
   getResourceFromUrl,
   getKeyFromPermalink,
   stripQueryParamsFromParsedUrl,
