@@ -83,22 +83,24 @@
         });
     }
 
-
-    function sendNotification() {
-        connection.none('NOTIFY ${channel:name}, ${payload}', { channel, payload: msg })
-            .catch(err => {  // unlikely to ever happen
-                error('sri4node-security-api | pglistener - failed to Notify:');
-                error(err);
-            })
+    async function sendNotification() {
+        try {
+            await connection.none('NOTIFY ${channel:name}, ${payload}', { channel, payload: msg })
+            debug('sri-security', 'pglistener - DONE');
+        } catch(err) { // unlikely to ever happen
+            error('sri-security | pglistener - failed to Notify:');
+            error(err);
+        }
     }
 
-    reconnect() // = same as reconnect(0, 1)
+    reconnect(5000, 10)
         .then(obj => {
             debug('sri-security', 'pglistener - successful initial connection');
         })
         .catch(err => {
             error('pglistener - failed initial connection:');
             error(err);
+            process.exit(); // exiting the process
         });
 
     return {
