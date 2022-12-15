@@ -23,7 +23,7 @@
     "chai": "^4.3.4",
     "eslint": "^1.7.3",
     "mocha": "^9.1.1",
-    "nock": "^2.17.0",
+    "nock": "^13.2.9",
     "sri4node": "https://github.com/katholiek-onderwijs-vlaanderen/sri4node.git#v2.3.10"
   },
   "dependencies": {
