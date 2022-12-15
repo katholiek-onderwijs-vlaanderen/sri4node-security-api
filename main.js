@@ -68,7 +68,7 @@ module.exports = function (pluginConfig, sri4node) {
           const pr = parseResource(sriRequest.originalUrl);
           if (pr.id === null && pr.query !== null) {
               if (pluginConfig.optimisation.mode !== 'NONE' && pluginConfig.optimisation.mode !== 'DEBUG') {
-                  const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.defaultComponent, 'read', sriRequest);
+                  const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.component, 'read', sriRequest);
                   sriRequest.listRequest = true;
                   sriRequest.listRequestAllowedByRawResourcesOptimization =
                       utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl, resourcesRaw, pluginConfig.optimisation);
@@ -85,7 +85,7 @@ module.exports = function (pluginConfig, sri4node) {
 
       const handleDebugOptimisation = async (sriRequest, ability, allowed) => {
         if (optimisationDebugEnabled(sriRequest, ability)) {
-          const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.defaultComponent, 'read', sriRequest);
+          const resourcesRaw = await security.requestRawResourcesFromSecurityServer(pluginConfig.component, 'read', sriRequest);
 
           const optimisationResultWithNormal = utils.isPathAllowedBasedOnResourcesRaw(sriRequest.originalUrl,
             resourcesRaw, { ...pluginConfig.optimisation, mode: 'NORMAL' });
@@ -98,7 +98,7 @@ module.exports = function (pluginConfig, sri4node) {
           const json = {
             url: sriRequest.originalUrl,
             urlTemplate: urlTemplate,
-            rawResources: security.composeRawResourcesUrl(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest)),
+            rawResources: security.composeRawResourcesUrl(pluginConfig.component, 'read', utils.getPersonFromSriRequest(sriRequest)),
             unoptimised: allowed,
             handling: sriRequest.securityHandling,
             normal: optimisationResultWithNormal,
@@ -118,7 +118,7 @@ module.exports = function (pluginConfig, sri4node) {
       let check = async function (tx, sriRequest, elements, ability) {
         // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
         try {
-          if ( pluginConfig.defaultComponent==='/security/components/security-api' 
+          if ( pluginConfig.component==='/security/components/security-api'
                 &&  sriRequest.userObject && sriRequest.userObject.username==='app.security' ) {
             sriRequest.securityHandling = 'bootstrap_bypass';
           } else if (ability==='read' && sriRequest.listRequestAllowedByRawResourcesOptimization===true) {
@@ -128,10 +128,10 @@ module.exports = function (pluginConfig, sri4node) {
             if (ability==='read' && pr.id === null && pr.query !== null) {
               debug('sri-security', `list resource (${sriRequest.originalUrl}) requested as part of batch -- currently security optimization is not available for such batch parts. `);
             }
-            await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, false)
+            await security.checkPermissionOnElements(pluginConfig.component, tx, sriRequest, elements, ability, false)
           } else {
             try {
-              await security.checkPermissionOnElements(pluginConfig.defaultComponent, tx, sriRequest, elements, ability, true)
+              await security.checkPermissionOnElements(pluginConfig.component, tx, sriRequest, elements, ability, true)
               if (pluginConfig.optimisation.mode === 'DEBUG') {
                 await handleDebugOptimisation(sriRequest, ability, true);
               } 
@@ -149,7 +149,7 @@ module.exports = function (pluginConfig, sri4node) {
             const json = {
               url: sriRequest.originalUrl,
               urlTemplate: getUrlTemplate(sriRequest.originalUrl),
-              rawResources: security.composeRawResourcesUrl(pluginConfig.defaultComponent, ability, getPersonFromSriRequest(sriRequest)),
+              rawResources: security.composeRawResourcesUrl(pluginConfig.component, ability, utils.getPersonFromSriRequest(sriRequest)),
               timeToFetchRawResources: sriRequest.sriSecurityTimeToFetchRawResources,
               handling: sriRequest.securityHandling,
               falseNegative: (sriRequest.listRequest === true) ? sriRequest.securityHandling.startsWith('db_check') : null,
@@ -162,7 +162,7 @@ module.exports = function (pluginConfig, sri4node) {
             const json = {
               url: sriRequest.originalUrl,
               urlTemplate: getUrlTemplate(sriRequest.originalUrl),
-              rawResources: security.composeRawResourcesUrl(pluginConfig.defaultComponent, 'read', getPersonFromSriRequest(sriRequest)),
+              rawResources: security.composeRawResourcesUrl(pluginConfig.component, 'read', utils.getPersonFromSriRequest(sriRequest)),
               timeToFetchRawResources: sriRequest.sriSecurityTimeToFetchRawResources,
               err
             }
