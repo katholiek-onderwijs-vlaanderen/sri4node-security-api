@@ -34,7 +34,13 @@ var utils = require('./utils');
         headers: pluginConfig.headers,
         username: pluginConfig.auth.user,
         password: pluginConfig.auth.pass,
-    };
+        accessToken: pluginConfig.accessToken,
+        retry: {
+          retries: 2,
+          initialWait: 50,
+          factor: 1,
+        }
+    }
 
     const securityApi = nodeSriClientFactory(securityConfiguration);
     const memPut = memoized(securityApi.put.bind(securityApi), {
