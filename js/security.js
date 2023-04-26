@@ -23,7 +23,12 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         headers: pluginConfig.headers,
         username: pluginConfig.auth.user,
         password: pluginConfig.auth.pass,
-        accessToken: pluginConfig.accessToken
+        accessToken: pluginConfig.accessToken,
+        retry: {
+          retries: 2,
+          initialWait: 50,
+          factor: 1,
+        }
     }
 
     const securityApi = require('@kathondvla/sri-client/node-sri-client')(securityConfiguration)
