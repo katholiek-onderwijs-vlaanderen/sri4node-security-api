@@ -27,11 +27,10 @@
     "sri4node": "https://github.com/katholiek-onderwijs-vlaanderen/sri4node.git#v2.3.10"
   },
   "dependencies": {
-    "@kathondvla/sri-client": "^3.0.20",
+    "@kathondvla/sri-client": "^3.0.24",
     "expiry-map": "^2.0.0",
-    "mem": "^8.0.0",
     "p-every": "^2.0.0",
     "p-map": "^4.0.0",
-    "p-memoize": "^6.0.2"
+    "p-memoize": "^4.0.4"
   }
 }
