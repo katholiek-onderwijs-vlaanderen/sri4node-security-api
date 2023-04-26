@@ -3,8 +3,8 @@ const urlModule = require('url');
 const _ = require('lodash');
 const pMap = require('p-map');
 const pEvery = require('p-every');
-const memoized = require('mem');
-
+const memoized = require('p-memoized');
+const ExpiryMap =require('expiry-map');
 
 const { SriError, debug, error, typeToMapping, getPersonFromSriRequest, tableFromMapping, urlToTypeAndKey, parseResource } = require('sri4node/js/common.js')
 
@@ -17,6 +17,8 @@ exports = module.exports = function (pluginConfig, sriConfig) {
     'use strict';
 
     const sri4nodeUtils = sriConfig.utils
+
+    const cache = new ExpiryMap(5 * 60 * 1000); // cache for 5 minutes
 
     const securityConfiguration = {
         baseUrl: pluginConfig.securityApiBase,
@@ -33,7 +35,7 @@ exports = module.exports = function (pluginConfig, sriConfig) {
 
     const securityApi = require('@kathondvla/sri-client/node-sri-client')(securityConfiguration)
     const memPut = memoized(securityApi.put.bind(securityApi), {
-        maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
+        cache,
         cacheKey: args => JSON.stringify(args),
     });
 
@@ -42,13 +44,18 @@ exports = module.exports = function (pluginConfig, sriConfig) {
         headers: pluginConfig.headers,
         username: pluginConfig.auth.user,
         password: pluginConfig.auth.pass,
-        accessToken: pluginConfig.accessToken
+        accessToken: pluginConfig.accessToken,
+        retry: {
+          retries: 2,
+          initialWait: 50,
+          factor: 1,
+        }
     }
     apiConfiguration.headers['Content-type'] = 'application/json; charset=utf-8';
 
     const api = require('@kathondvla/sri-client/node-sri-client')(apiConfiguration)
     const apiPost = memoized(api.post.bind(api), {
-        maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
+        cache,
         cacheKey: args => JSON.stringify(args),
     });
 
