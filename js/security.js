@@ -2,8 +2,10 @@ const urlModule = require('url');
 const _ = require('lodash');
 const pMap = require('p-map');
 const pEvery = require('p-every');
-const memoized = require('mem');
+const memoized = require('p-memoized');
+const ExpiryMap =require('expiry-map');
 const nodeSriClientFactory = require('@kathondvla/sri-client/node-sri-client');
+
 const SriClientError = require('@kathondvla/sri-client/sri-client-error');
 
 var utils = require('./utils');
@@ -29,6 +31,8 @@ var utils = require('./utils');
     const { getPersonFromSriRequest } = utils;
     const sri4nodeUtils = sri4node.utils;
 
+    const cache = new ExpiryMap(5 * 60 * 1000); // cache for 5 minutes
+
     const securityConfiguration = {
         baseUrl: pluginConfig.securityApiBase,
         headers: pluginConfig.headers,
@@ -44,7 +48,7 @@ var utils = require('./utils');
 
     const securityApi = nodeSriClientFactory(securityConfiguration);
     const memPut = memoized(securityApi.put.bind(securityApi), {
-        maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
+        cache,
         cacheKey: args => JSON.stringify(args),
     });
 
@@ -56,11 +60,18 @@ var utils = require('./utils');
         },
         username: pluginConfig.auth.user,
         password: pluginConfig.auth.pass,
-    };
+        accessToken: pluginConfig.accessToken,
+        retry: {
+          retries: 2,
+          initialWait: 50,
+          factor: 1,
+        }
+    }
+    apiConfiguration.headers['Content-type'] = 'application/json; charset=utf-8';
 
     const api = nodeSriClientFactory(apiConfiguration)
     const apiPost = memoized(api.post.bind(api), {
-        maxAge: 5 * 60 * 1000, // cache requests for 5 minutes
+        cache,
         cacheKey: args => JSON.stringify(args),
     });
 
