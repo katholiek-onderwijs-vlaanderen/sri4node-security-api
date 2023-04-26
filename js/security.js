@@ -2,7 +2,7 @@ const urlModule = require('url');
 const _ = require('lodash');
 const pMap = require('p-map');
 const pEvery = require('p-every');
-const memoized = require('p-memoized');
+const memoized = require('p-memoize');
 const ExpiryMap =require('expiry-map');
 const nodeSriClientFactory = require('@kathondvla/sri-client/node-sri-client');
 
