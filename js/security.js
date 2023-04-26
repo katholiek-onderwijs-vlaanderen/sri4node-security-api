@@ -25,25 +25,32 @@ var utils = require('./utils');
 
     'use strict';
 
+    const config = {
+      // few default which pluginConfig can override
+      cacheTime: 5 * 60 * 1000, // cache for 5 minutes
+      retryPolicy: {
+        retries: 2,
+        initialWait: 50,
+        factor: 1,
+      },
+      ...pluginConfig,
+    };
+
     const { SriError, debug, error } = sri4node;
     const { typeToMapping, tableFromMapping, urlToTypeAndKey, parseResource } = sri4node.utils;
 
     const { getPersonFromSriRequest } = utils;
     const sri4nodeUtils = sri4node.utils;
 
-    const cache = new ExpiryMap(5 * 60 * 1000); // cache for 5 minutes
+    const cache = new ExpiryMap(config.cacheTime);
 
     const securityConfiguration = {
-        baseUrl: pluginConfig.securityApiBase,
-        headers: pluginConfig.headers,
-        username: pluginConfig.auth.user,
-        password: pluginConfig.auth.pass,
-        accessToken: pluginConfig.accessToken,
-        retry: {
-          retries: 2,
-          initialWait: 50,
-          factor: 1,
-        }
+        baseUrl: config.securityApiBase,
+        headers: config.headers,
+        username: config.auth.user,
+        password: config.auth.pass,
+        accessToken: config.accessToken,
+        retry: config.retryPolicy,
     }
 
     const securityApi = nodeSriClientFactory(securityConfiguration);
@@ -53,19 +60,15 @@ var utils = require('./utils');
     });
 
     const apiConfiguration = {
-        baseUrl: pluginConfig.apiBase,
+        baseUrl: config.apiBase,
         headers: {
             'Content-type': 'application/json; charset=utf-8',
-            ...pluginConfig.headers,
+            ...config.headers,
         },
-        username: pluginConfig.auth.user,
-        password: pluginConfig.auth.pass,
-        accessToken: pluginConfig.accessToken,
-        retry: {
-          retries: 2,
-          initialWait: 50,
-          factor: 1,
-        }
+        username: config.auth.user,
+        password: config.auth.pass,
+        accessToken: config.accessToken,
+        retry: config.retryPolicy,
     }
     apiConfiguration.headers['Content-type'] = 'application/json; charset=utf-8';
 
@@ -203,10 +206,10 @@ var utils = require('./utils');
 
             let keysNotMatched;
 
-            if (ability === 'read' && pluginConfig.securityDbCheckMethod === 'CacheRawListResults') {
+            if (ability === 'read' && config.securityDbCheckMethod === 'CacheRawListResults') {
                 const rawKeySet = await memoizedRawUrlListToKeySet(rawUrlList, tx);
                 keysNotMatched = allKeys.filter(k => !rawKeySet.has(k));
-            } else if (ability === 'read' && pluginConfig.securityDbCheckMethod === 'CacheRawResults') {
+            } else if (ability === 'read' && config.securityDbCheckMethod === 'CacheRawResults') {
 
                 const union = function (iterables) {
                     const set = new Set();
@@ -290,7 +293,7 @@ var utils = require('./utils');
         // Notify the oauthPlugin that the current request is forbidden. The valve might act
         // according to this information by throwing an SriError object (for example a redirect to a 
         // login page or an error in case of a bad authentication token). 
-        pluginConfig.oauthPlugin.handleForbiddenBySecurity(sriRequest)
+        config.oauthPlugin.handleForbiddenBySecurity(sriRequest)
 
         // If the valve did not throw an SriError, the default response 403 Forbidden is returned.
         throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [] })
