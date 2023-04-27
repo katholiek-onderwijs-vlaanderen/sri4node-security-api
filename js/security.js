@@ -396,7 +396,9 @@ exports = module.exports = function (pluginConfig, sri4node) {
   async function doSecurityRequest(batch, sriRequest) {
     try {
       const start = new Date();
-      const res = await memPut("/security/query/batch", batch);
+      const res = await memPut("/security/query/batch", batch, {
+        retry: config.retryPolicy,
+      });
       if (res.some((r) => r.status != 200)) {
         debug(
           "sri-security",
@@ -719,10 +721,16 @@ exports = module.exports = function (pluginConfig, sri4node) {
                 "sri-security",
                 `API CALL TO ${resourceType}/ispartof for ${resource} <-> ${rqList}`
               );
-              const result = await apiPost(`${resourceType}/ispartof`, {
-                a: { href: resource },
-                b: { hrefs: rqList },
-              });
+              const result = await apiPost(
+                `${resourceType}/ispartof`,
+                {
+                  a: { href: resource },
+                  b: { hrefs: rqList },
+                },
+                {
+                  retry: config.retryPolicy,
+                }
+              );
               debug(`API result: ${result.length}`);
               return result.length > 0;
             } catch (err) {
