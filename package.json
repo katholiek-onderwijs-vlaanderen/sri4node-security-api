@@ -21,15 +21,16 @@
   "devDependencies": {
     "@types/mocha": "^10.0.1",
     "chai": "^4.3.4",
-    "eslint": "^1.7.3",
+    "eslint": "^8.39.0",
     "mocha": "^9.1.1",
     "nock": "^2.17.0",
     "sri4node": "https://github.com/katholiek-onderwijs-vlaanderen/sri4node.git#v2.3.10"
   },
   "dependencies": {
-    "@kathondvla/sri-client": "^3.0.5",
-    "mem": "^8.0.0",
+    "@kathondvla/sri-client": "^3.0.24",
+    "expiry-map": "^2.0.0",
     "p-every": "^2.0.0",
-    "p-map": "^4.0.0"
+    "p-map": "^4.0.0",
+    "p-memoize": "^4.0.4"
   }
 }
