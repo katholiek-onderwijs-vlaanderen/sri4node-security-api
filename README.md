@@ -62,7 +62,14 @@ const securityConfig = {
    component: '/security/components/persons-api',
    oauthPlugin,
    app,
-   securityDbCheckMethod: 'CacheRawListResults', 
+   securityDbCheckMethod: 'CacheRawListResults',
+   // retryPolicy is optional, default is: { retries: 2, initialWait: 50, factor: 1 }
+   retryPolicy: {
+      retries: 3, // retry 3 more times in case of a failure
+      initialWait: 50, // wait 50ms before the first retry
+      factor: 1, // multiply initialWait by 1 for each retry
+      // (if factor > 1, every retry will wait 'factor' times longer than the previous one)
+   },
    optimisation: {
       mode: 'AGGRESSIVE',
       queryParamsThatNotExclusivelyLimitTheResultSet: [ 'myextendingqueryparam' ],
