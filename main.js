@@ -1,7 +1,7 @@
-const { SriError, utils: sri4nodeUtils } = require('sri4node');
+const { SriError, utils: sri4nodeUtils, error, debug } = require('sri4node');
 const utils = require('./js/utils');
 
-const { parseResource, error, debug } = sri4nodeUtils;
+const { parseResource } = sri4nodeUtils;
 
 
 /**
