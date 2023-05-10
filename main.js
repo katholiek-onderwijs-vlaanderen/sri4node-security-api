@@ -1,6 +1,8 @@
-const { SriError } = require('sri4node');
-const { parseResource, debug, error } = require('sri4node/dist/js/common');
+const { SriError, utils: sri4nodeUtils } = require('sri4node');
 const utils = require('./js/utils');
+
+const { parseResource, error, debug } = sri4nodeUtils;
+
 
 /**
  * @typedef {import('sri4node')} TSri4Node
