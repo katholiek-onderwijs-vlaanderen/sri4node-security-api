@@ -29,6 +29,7 @@
   "dependencies": {
     "@kathondvla/sri-client": "^3.0.24",
     "expiry-map": "^2.0.0",
+    "lodash": "^4.17.21",
     "p-every": "^2.0.0",
     "p-map": "^4.0.0",
     "p-memoize": "^4.0.4"
