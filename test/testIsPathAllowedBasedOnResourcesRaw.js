@@ -5,7 +5,7 @@ const { assert } = require('chai');
 // const sri4nodeUtilsMock = require('./sri4nodeUtilsMock');
 
 const { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl, 
-        searchParamsProduceSubset, addSriDefaultsToOptimisationOptions } = require('../js/utils')
+        searchParamsProduceSubset, addSriDefaultsToOptimisationOptions, getResourceFromUrl } = require('../js/utils')
 
 const optionsOptimisationModeNone = { mode: 'NONE' };
 const optionsOptimisationModeNormal = { mode: 'NORMAL' };
@@ -1403,6 +1403,22 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is AGGRES
     assertsActivityplansApi(optionsActivityplansApi, true);
   });
 
+});
+
+describe('getResourceFromUrl(...) returns correct path', function () {
+  it('getResourceFromUrl(...) returns correct path', function () {
+    assert.equal(getResourceFromUrl('/responsibilities'), '/responsibilities');
+    assert.equal(getResourceFromUrl('/sam/responsibilities'), '/sam/responsibilities');
+    assert.equal(getResourceFromUrl('/responsibilities/00000023-4ab5-402b-8120-f50a34ccab59'), '/responsibilities');
+    assert.equal(getResourceFromUrl('/responsibilities?person=00000023-4ab5-402b-8120-f50a34ccab59'), '/responsibilities');
+    assert.equal(getResourceFromUrl('/responsibilities?person=00000023-4ab5-402b-8120-f50a34ccab59&extra=bla'), '/responsibilities');
+    assert.equal(getResourceFromUrl('/llinkid/responsibilities?person=00000023-4ab5-402b-8120-f50a34ccab59&extra=bla'), '/llinkid/responsibilities');
+    assert.equal(getResourceFromUrl('/sam/commons/responsibilities/00000023-4ab5-402b-8120-f50a34ccab59'), '/sam/commons/responsibilities');
+    assert.equal(getResourceFromUrl('/sam/commons/cities/123456'), '/sam/commons/cities', 'A numeric key does not work!');
+    assert.equal(getResourceFromUrl('sam/commons/cities/123456'), null, 'if it does not start with / there is no matching group');
+    assert.equal(getResourceFromUrl('/12344'), null);
+    assert.equal(getResourceFromUrl('/sri4node'), null, 'a path with one digit is not considered a resource name');
+  });
 });
 
 // TODO: test for error messages in case of

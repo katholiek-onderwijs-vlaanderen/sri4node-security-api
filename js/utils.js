@@ -1,8 +1,13 @@
 // Some old functions, unfortunately still in use; they need to be replaced by similar calls to sri4node common
+/**
+ * given any url or permalink this will return the path (strip of the resource key / the paremeters)
+ * @param {string} url 
+ * @returns {string | null}
+ */
 function getResourceFromUrl(url) {
   'use strict';
 
-  const groups = url.match(/^(\/[a-z\/]*[[a-z]+)((\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})|\?|$|\/$)(.*)?$/)
+  const groups = url.match(/^(\/[a-z\/]*[[a-z]+)((\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})|(\/[0-9]+)|\?|$|\/$)(.*)?$/)
   if (groups != null && groups.length > 0) {
     return groups[1]
   } else {
