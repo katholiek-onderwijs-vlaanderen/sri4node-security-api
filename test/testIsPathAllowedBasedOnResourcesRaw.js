@@ -1408,6 +1408,10 @@ describe('isPathAllowedBasedOnResourcesRaw(...) with optimisation mode is AGGRES
 describe('getResourceFromUrl(...) returns correct path', function () {
   it('getResourceFromUrl(...) returns correct path', function () {
     assert.equal(getResourceFromUrl('/responsibilities'), '/responsibilities');
+    assert.equal(getResourceFromUrl('/boe/ba'), '/boe', 'a part of a resource path should have more than 3 characters');
+    assert.equal(getResourceFromUrl('/ba'), '/ba', 'a part of a resource path that is not the root should have more than 3 characters');
+    assert.equal(getResourceFromUrl('/sam/ba/huppeldepup'), null, 'a part of a resource path should have more than 3 characters');
+    assert.equal(getResourceFromUrl('/ba/00000023-4ab5-402b-8120-f50a34ccab59'), '/ba', 'a part of a resource path that is not the root should have more than 3 characters');
     assert.equal(getResourceFromUrl('/sam/responsibilities'), '/sam/responsibilities');
     assert.equal(getResourceFromUrl('/responsibilities/00000023-4ab5-402b-8120-f50a34ccab59'), '/responsibilities');
     assert.equal(getResourceFromUrl('/responsibilities?person=00000023-4ab5-402b-8120-f50a34ccab59'), '/responsibilities');
@@ -1417,7 +1421,9 @@ describe('getResourceFromUrl(...) returns correct path', function () {
     assert.equal(getResourceFromUrl('/sam/commons/cities/123456'), '/sam/commons/cities', 'A numeric key does not work!');
     assert.equal(getResourceFromUrl('sam/commons/cities/123456'), null, 'if it does not start with / there is no matching group');
     assert.equal(getResourceFromUrl('/12344'), null);
+    assert.equal(getResourceFromUrl('/resp[onsibilities'), null, 'there was a [ in the resource name');
     assert.equal(getResourceFromUrl('/sri4node'), null, 'a path with one digit is not considered a resource name');
+    assert.equal(getResourceFromUrl('/sam/commons/countries/be'), '/sam/commons/countries');
   });
 });
 
