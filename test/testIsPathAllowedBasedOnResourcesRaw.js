@@ -1424,6 +1424,7 @@ describe('getResourceFromUrl(...) returns correct path', function () {
     assert.equal(getResourceFromUrl('/resp[onsibilities'), null, 'there was a [ in the resource name');
     assert.equal(getResourceFromUrl('/sri4node'), null, 'a path with one digit is not considered a resource name');
     assert.equal(getResourceFromUrl('/sam/commons/countries/be'), '/sam/commons/countries');
+    assert.equal(getResourceFromUrl('/sam/educationalprogrammedetails?organisationalUnit=/sam/organisationalunits/c64f7175-e87b-4cc2-9f55-dfbff319a72b&hasStudyProgramme=true'), '/sam/educationalprogrammedetails')
   });
 });
 
