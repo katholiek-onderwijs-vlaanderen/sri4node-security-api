@@ -164,7 +164,7 @@ module.exports = function (pluginConfig, sri4node) {
             const json = {
               url: sriRequest.originalUrl,
               urlTemplate: getUrlTemplate(sriRequest.originalUrl),
-              rawResources: security.composeRawResourcesUrl(pluginConfig.component, 'read', utils.getPersonFromSriRequest(sriRequest)),
+              rawResources: security.composeRawResourcesUrl(pluginConfig.component, ability, utils.getPersonFromSriRequest(sriRequest)),
               timeToFetchRawResources: sriRequest.sriSecurityTimeToFetchRawResources,
               err
             }
