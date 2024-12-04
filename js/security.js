@@ -615,7 +615,7 @@ exports = module.exports = function (pluginConfig, sri4node) {
       const toCheck = _.uniqWith(
         notAllowedIndices.map((idx) => {
           const { component, resource, ability } = elements[idx];
-          const { type } = urlToTypeAndKey(resource);
+          const { type } = resource ? urlToTypeAndKey(resource) : {};
           return { component, type, ability };
         }),
         _.isEqual
