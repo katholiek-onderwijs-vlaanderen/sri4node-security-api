@@ -1,6 +1,6 @@
 # Release Notes
 
-## v2.3.12 (13-01-2026)
+## v2.3.13 (13-01-2026)
 
 * added new security config parameter "useIsPartOfInsteadOfLocalCheck" to indicate how to resolve raw resources and exposed the "check" function which now acts according to this new parameter
 
