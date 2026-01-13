@@ -1,5 +1,12 @@
 # Release Notes
 
+## v2.3.12 (13-01-2026)
+
+* added new security config parameter "useIsPartOfInsteadOfLocalCheck" to indicate how to resolve raw resources and exposed the "check" function which now acts according to this new parameter
+
+
+...
+
 ## 2.0.53 (28-09-2021)
 
 * added allowedCheckWithRawAndIsPartOfBatch function, to be able to do the allowed check by requesting raw resources and calling ispartof to api's - to offload the new security server
