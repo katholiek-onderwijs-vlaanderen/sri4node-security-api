@@ -57,6 +57,7 @@ A configuration object needs to be passed, containing at least the relevant secu
 Remarks:
    - using this option is slower and generates extra load on the api responsible for the configued raw resources, but in some cases there is no other way to handle security
    - configuring database related options `securityDbCheckMethod` or `optimisation` in combination with this option makes no sense and will be ignored
+   - the configuration option `apiBase` is required and will be used to for the /ispartof queries
 
 Initialisation example:
 ```javascript
