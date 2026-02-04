@@ -59,12 +59,6 @@ module.exports = function (pluginConfig, sri4node) {
 
       this.init(sriConfig, db);
 
-      const getUrlTemplate = (url) => {
-        const strippedUrl = utils.stripSpecialSriQueryParamsFromParsedUrl(new URL(url, 'https://xyz.com'));
-        strippedUrl.searchParams.sort();
-        return strippedUrl.pathname + '?' + [...strippedUrl.searchParams.keys()].map(key => key + '=...').join('&');
-      }
-
       const listRequestOptimization = async function(tx, sriRequest) {
         if (!sriRequest.isBatchPart===true) {
           const pr = parseResource(sriRequest.originalUrl);
@@ -77,6 +71,56 @@ module.exports = function (pluginConfig, sri4node) {
               }
           }
         }
+      }
+
+      const checkForSecurityBypass = async () => {
+        try {
+          // enable security bypass with following SQL:
+          // > CREATE TABLE security_bypass (enabled boolean);
+          // > INSERT INTO security_bypass VALUES (true);
+          const [ {enabled} ] = await db.any('SELECT enabled FROM security_bypass LIMIT 1;')
+          return enabled;
+        } catch (err) {
+          return false;
+        }
+      }
+      const securityBypass = await checkForSecurityBypass()
+
+      let check = this.check.bind(this);
+      if (securityBypass === true) {
+        check = async function (tx, sriRequest, elements, ability) {
+          // in this mode (part of the security backup plan), everything is allowed as long a user is logged in
+          if (sriRequest.userObject === null || sriRequest.userObject === undefined) {
+            throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [ 'User not logged in' ] });
+          }
+        }
+      }
+
+      sriConfig.resources.forEach( resource => {
+        // security functions should be FIRST function in handler lists
+        resource.beforeRead.unshift(listRequestOptimization);
+        resource.afterRead.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'read'))
+        resource.afterInsert.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'create'))
+        resource.beforeUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))
+        resource.afterUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))
+        resource.beforeDelete.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'delete'))
+
+        if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
+             pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
+            resource.afterInsert.push(pglistener.sendNotification);
+            resource.afterUpdate.push(pglistener.sendNotification);
+            resource.afterDelete.push(pglistener.sendNotification);
+        }
+      })
+      sriConfig.beforePhase.unshift(security.beforePhaseHook);
+    },
+
+    check: async function (tx, sriRequest, elements, ability) {
+
+      const getUrlTemplate = (url) => {
+        const strippedUrl = utils.stripSpecialSriQueryParamsFromParsedUrl(new URL(url, 'https://xyz.com'));
+        strippedUrl.searchParams.sort();
+        return strippedUrl.pathname + '?' + [...strippedUrl.searchParams.keys()].map(key => key + '=...').join('&');
       }
 
       const optimisationDebugEnabled = (sriRequest, ability) => {
@@ -117,11 +161,16 @@ module.exports = function (pluginConfig, sri4node) {
         }
       }
 
-      let check = async function (tx, sriRequest, elements, ability) {
-        // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
         try {
+          if (pluginConfig.useIsPartOfInsteadOfLocalCheck === true) {
+            console.log('elements', elements);
+            elementsForIsPartOf = elements.map( e => ({component: pluginConfig.component, resource: e.permalink, ability}) );
+            await security.allowedCheckWithRawAndIsPartOfBatch(tx, sriRequest, elementsForIsPartOf);
+            sriRequest.securityHandling = 'ispartof';
+          } else {
           if ( pluginConfig.component==='/security/components/security-api'
                 &&  sriRequest.userObject && sriRequest.userObject.username==='app.security' ) {
+           // by-pass for security to be able to bootstrap security rules on the new security server when starting from scratch
             sriRequest.securityHandling = 'bootstrap_bypass';
           } else if (ability==='read' && sriRequest.listRequestAllowedByRawResourcesOptimization===true) {
             sriRequest.securityHandling = `listResourceOptimization (mode: ${pluginConfig.optimisation.mode})`;
@@ -158,6 +207,7 @@ module.exports = function (pluginConfig, sri4node) {
             }
             debug('sri-security', `request allowed: ${JSON.stringify(json)}`);
           }
+          }
         } catch(err) {
           // catch err and rethrow to be able to log the rejection
           if (!optimisationDebugEnabled(sriRequest, ability)) {  // if optimisationDebug is enabled, the request is already logged
@@ -172,47 +222,6 @@ module.exports = function (pluginConfig, sri4node) {
           }
           throw err;
         }
-      }
-
-      const checkForSecurityBypass = async () => {
-        try {
-          // enable security bypass with following SQL:
-          // > CREATE TABLE security_bypass (enabled boolean);
-          // > INSERT INTO security_bypass VALUES (true);
-          const [ {enabled} ] = await db.any('SELECT enabled FROM security_bypass LIMIT 1;')
-          return enabled;
-        } catch (err) {
-          return false;
-        }
-      }
-      const securityBypass = await checkForSecurityBypass()
-
-      if (securityBypass === true) {
-        check = async function (tx, sriRequest, elements, ability) {
-          // in this mode (part of the security backup plan), everything is allowed as long a user is logged in
-          if (sriRequest.userObject === null || sriRequest.userObject === undefined) {
-            throw new SriError({ status: 403, sriRequestID: sriRequest.id, errors: [ 'User not logged in' ] });
-          }
-        }
-      }
-
-      sriConfig.resources.forEach( resource => {
-        // security functions should be FIRST function in handler lists
-        resource.beforeRead.unshift(listRequestOptimization);
-        resource.afterRead.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'read'))
-        resource.afterInsert.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'create'))
-        resource.beforeUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))
-        resource.afterUpdate.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'update'))
-        resource.beforeDelete.unshift(async (tx, sriRequest, elements) => await check(tx, sriRequest, elements, 'delete'))
-
-        if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
-             pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
-            resource.afterInsert.push(pglistener.sendNotification);
-            resource.afterUpdate.push(pglistener.sendNotification);
-            resource.afterDelete.push(pglistener.sendNotification);
-        }
-      })
-      sriConfig.beforePhase.unshift(security.beforePhaseHook);
     },
 
     checkPermissionOnResourceList: function (tx, sriRequest, ability, resourceList, component, immediately=false) { 

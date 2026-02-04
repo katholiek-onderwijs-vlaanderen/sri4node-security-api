@@ -53,6 +53,12 @@ A configuration object needs to be passed, containing at least the relevant secu
          - `name`:  mandatory - name of the corresponding single valued property 
          - `aliases`:  optional - alias for the corresponding single valued property  
 
+- useIsPartOfInsteadOfLocalCheck: optional - as explained above this plugin will query the security server and compare the resulting raw resources with the resource of the requested operation to determine if it is allowed. For performance reasons this comparation is normally done via local database queries (with several possible variations in caching and performance optimalisations - see the configuration options above), but sometimes this is not possible (like for persons-api-sri4node: because this server, which specificily deals with profile pictures, is a seperate server from persons-api with a seperate database and it cannot locally resolve in its database raw resources like `/persons?someParameter=...`). With the option `useIsPartOfInsteadOfLocalCheck` enabled, no local raw resources comparation is done but (if needed) the API itself is queried with /ispartof queries to determine if operations are allowed or not.
+Remarks:
+   - using this option is slower and generates extra load on the api responsible for the configued raw resources, but in some cases there is no other way to handle security
+   - configuring database related options `securityDbCheckMethod` or `optimisation` in combination with this option makes no sense and will be ignored
+   - the configuration option `apiBase` is required and will be used to for the /ispartof queries
+
 Initialisation example:
 ```javascript
 const sri4node = require('sri4node');
@@ -125,5 +131,5 @@ Be aware that the "allowed" query functions on the security server are not optim
     - `elements`: list of `{component, resource, ability}`
 
 ## allowedCheckWithRawAndIsPartOfBatch
-Same functionality as the allowedCheck. Instead of doing "allowed" queries against the security server, "resources raw" are requested from the security server and the relevant resources API's are queried with isPartOf to determine whether the original query is allowed or not. With this function the load on the security server is reduces (the api's servers will receive more load).
+Same functionality as the allowedCheck. Instead of doing "allowed" queries against the security server, "resources raw" are requested from the security server and the relevant resources API's are queried with isPartOf to determine whether the original query is allowed or not. With this function the load on the security server is reduced (the api's servers will receive more load).
 

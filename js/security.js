@@ -731,7 +731,7 @@ exports = module.exports = function (pluginConfig, sri4node) {
                   retry: config.retryPolicy,
                 }
               );
-              debug(`API result: ${result.length}`);
+              debug("sri-security", `API result: ${result.length}`);
               return result.length > 0;
             } catch (err) {
               error(
