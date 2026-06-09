@@ -1,8 +1,13 @@
 const { SriError, utils: sri4nodeUtils, error, debug } = require('sri4node');
+const { PgListener } = require('pg-listener');
+
 const utils = require('./js/utils');
 
 const { parseResource } = sri4nodeUtils;
 
+
+const pgListenerChannel = 'sri4node-security-api'; // LISTEN - channel name
+const pgListenerMsg = 'clearMem';
 
 /**
  * @typedef {import('sri4node')} TSri4Node
@@ -24,19 +29,71 @@ module.exports = function (pluginConfig, sri4node) {
     throw new Error('security plugin config error: oauthPlugin property is missing');
   }
 
+  const sendNotification = async function () {
+    try {
+        await db.none('NOTIFY ${channel:name}, ${payload}', { channel: pgListenerChannel, payload: pgListenerMsg })
+    } catch(err) { // unlikely to ever happen
+        error('sri-security | pglistener - failed to Notify:');
+        error(err);
+    }
+}
+
   let security;
+  let db;
   let pglistener;
   return {
     /**
      * 
-     * @param {TSriConfig} sriConfig 
-     * @param {*} db 
+     * @param {TSriConfig} _sriConfig
+     * @param {*} dbIn
      */
-    init: function (sriConfig, db) {
+    init: function (_sriConfig, dbIn) {
+      db = dbIn;
       security = require('./js/security')(pluginConfig, sri4node);
       if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
             pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
-        pglistener = require('./js/pglistener')(db, security.clearRawUrlCaches, sri4node);
+
+        const pgp = db.$config.pgp;
+        pglistener = new PgListener({pgp, db,
+          retryAll: {
+            delay: s => 5 ** (s.index + 1), // Exponential delays: 5, 25, 125, 625, 3125 ms
+            // retry: default is inifite, which is what we want
+          }
+        }
+        );
+
+        const events = {
+          onMessage(msg) {
+            if (msg.channel === pgListenerChannel && msg.payload === pgListenerMsg) {
+              debug('sri-security', 'pglistener - received notification to clear raw url caches, clearing caches now.');
+              security.clearRawUrlCaches();
+            }
+          },
+          onConnect() {
+            debug('sri-security', 'pglistener - successfully connected and listening.');
+          },
+          onDisconnect(err) {
+            debug('sri-security', 'pglistener - disconnected.');
+            error(err);
+          },
+          onFailedReconnect(err) {
+            error('sri-security | pglistener - failed to reconnect:');
+            error(err);
+            process.exit(1); // in case of failed reconnect, exit process to be able to restart with a clean slate (and hopefully successful connection)
+          }
+        };
+
+        pglistener.listen([pgListenerChannel], events)
+          .then(_result => {
+            // Successful Initial Connection;
+            debug('sri-security', 'pglistener - successfully connected and listening.');
+          })
+          .catch(err => {
+            // Log the error but don't exit - pg-listener will keep retrying
+            error('sri-security | pglistener - failed initial connection, will keep retrying:');
+            error(err);
+            process.exit(1); // in case of failed initial connection, exit process to be able to restart with a clean slate (and hopefully successful connection)
+          });
       }
 
       if (pluginConfig.optimisation === undefined) {
@@ -107,9 +164,9 @@ module.exports = function (pluginConfig, sri4node) {
 
         if ( pluginConfig.securityDbCheckMethod === 'CacheRawListResults' ||
              pluginConfig.securityDbCheckMethod === 'CacheRawResults' ) {
-            resource.afterInsert.push(pglistener.sendNotification);
-            resource.afterUpdate.push(pglistener.sendNotification);
-            resource.afterDelete.push(pglistener.sendNotification);
+            resource.afterInsert.push(sendNotification);
+            resource.afterUpdate.push(sendNotification);
+            resource.afterDelete.push(sendNotification);
         }
       })
       sriConfig.beforePhase.unshift(security.beforePhaseHook);

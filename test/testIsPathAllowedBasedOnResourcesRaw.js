@@ -1,8 +1,4 @@
-// const assert = require('assert');
 const { assert } = require('chai');
-
-// const nock = require('nock');
-// const sri4nodeUtilsMock = require('./sri4nodeUtilsMock');
 
 const { isPathAllowedBasedOnResourcesRaw, stripQueryParamsFromParsedUrl, 
         searchParamsProduceSubset, addSriDefaultsToOptimisationOptions, getResourceFromUrl } = require('../js/utils')
