@@ -1,5 +1,14 @@
 # Release Notes
 
+
+## v2.3.15 (12-11-2026)
+
+* update all deps to fix all vulnerabilities reported by npm audit
+
+## v2.3.14 (08-06-2026)
+
+* use `pg-listener` lib instead of custom old code
+
 ## v2.3.13 (13-01-2026)
 
 * added new security config parameter "useIsPartOfInsteadOfLocalCheck" to indicate how to resolve raw resources and exposed the "check" function which now acts according to this new parameter
